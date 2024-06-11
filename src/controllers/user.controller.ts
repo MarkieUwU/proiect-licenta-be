@@ -10,11 +10,9 @@ export const getUsers = asyncHandler(async (req, res, next) => {
 });
 
 export const getUserById = asyncHandler(async (req, res, next) => {
-  const userId = Number(req.params.id);
+  const id = Number(req.params.id);
   const user = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
+    where: { id },
   });
 
   res.json(user);

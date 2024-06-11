@@ -8,7 +8,7 @@ router.get("/", (req, res) => {
 
 router.get("/:id");
 
-router.post("/");
+router.post("/:userId");
 
 router.put("/:id");
 
