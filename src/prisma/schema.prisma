@@ -10,7 +10,7 @@ datasource db {
 
 model User {
   id        Int       @id @default(autoincrement())
-  name      String
+  userName      String
   email     String    @unique
   createdAt DateTime  @default(now())
   comments  Comment[]

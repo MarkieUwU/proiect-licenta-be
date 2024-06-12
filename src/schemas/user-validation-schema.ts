@@ -1,15 +1,18 @@
 import { body } from "express-validator";
 
 export const createUserValidationSchema = [
-  body("name")
+  body("userName")
     .exists({ values: "falsy" })
-    .withMessage("Name must be provided")
+    .withMessage("Username must be provided")
     .isLength({ min: 2, max: 100 }),
   body("email").isEmail().withMessage("Email is not valid"),
 ];
 
 export const updateUserValidationSchema = [
-  body("name").optional().isString().withMessage("Name must be a string"),
+  body("userName")
+    .optional()
+    .isString()
+    .withMessage("Username must be a string"),
   body("email")
     .optional({ values: "falsy" })
     .isEmail()

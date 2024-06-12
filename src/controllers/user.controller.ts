@@ -17,21 +17,21 @@ export const getUserById = asyncHandler(async (req, res, next) => {
 });
 
 export const createUser = asyncHandler(async (req, res, next) => {
-  const { name, email } = req.body;
+  const { userName, email } = req.body;
   const user = await prisma.user.create({
-    data: { name, email },
+    data: { userName, email },
   });
 
   res.json(user);
 });
 
 export const updateUser = asyncHandler(async (req, res, next) => {
-  const { name, email } = req.body;
+  const { userName, email } = req.body;
   const user = await prisma.user.update({
     where: {
       id: parseInt(req.params.id),
     },
-    data: { name, email },
+    data: { userName, email },
   });
 
   res.json(user);
