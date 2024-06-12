@@ -1,17 +1,10 @@
 import { Router } from "express";
+import { createLikeOnPost, deleteLike } from "../controllers/like.controller";
 
 const router = Router();
 
-router.get("/", (req, res) => {
-  res.send("Like Router works");
-});
+router.post("/", createLikeOnPost);
 
-router.get("/:id");
-
-router.post("/");
-
-router.put("/:id");
-
-router.delete("/:id");
+router.delete("/:id", deleteLike);
 
 export default router;

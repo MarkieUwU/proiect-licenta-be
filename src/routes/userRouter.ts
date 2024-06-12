@@ -3,8 +3,9 @@ import {
   createUser,
   deleteUser,
   getUserById,
-  getUsers,
+  getAllUsers,
   updateUser,
+  getUserPosts,
 } from "../controllers/user.controller";
 import { validateRequestSchema } from "../middleware/validation-middleware";
 import {
@@ -14,9 +15,11 @@ import {
 
 const router = Router();
 
-router.get("/", getUsers);
+router.get("/", getAllUsers);
 
 router.get("/:id", getUserById);
+
+router.get("/posts/:id", getUserPosts);
 
 router.post("/", createUserValidationSchema, validateRequestSchema, createUser);
 

@@ -1,9 +1,7 @@
-import { PrismaClient, type User } from "@prisma/client";
 import asyncHandler from "express-async-handler";
+import { prisma } from "../../server";
 
-const prisma = new PrismaClient();
-
-export const getUsers = asyncHandler(async (req, res, next) => {
+export const getAllUsers = asyncHandler(async (req, res, next) => {
   const users = await prisma.user.findMany();
 
   res.json(users);
@@ -48,4 +46,15 @@ export const deleteUser = asyncHandler(async (req, res, next) => {
   });
 
   res.json(user);
+});
+
+export const getUserPosts = asyncHandler(async (req, res, next) => {
+  const id = Number(req.params.id);
+  const posts = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      posts: true,
+    },
+  });
+  res.json(posts);
 });

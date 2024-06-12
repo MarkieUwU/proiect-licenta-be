@@ -1,15 +1,13 @@
-import { PrismaClient } from "@prisma/client/extension";
 import asyncHandler from "express-async-handler";
+import { prisma } from "../../server";
 
-const prisma = new PrismaClient();
-
-export const getPosts = asyncHandler(async (req, res, next) => {
+export const getAllPosts = asyncHandler(async (req, res, next) => {
   const posts = await prisma.post.findMany();
 
   res.json(posts);
 });
 
-export const getPostsById = asyncHandler(async (req, res, next) => {
+export const getPostById = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);
   const post = await prisma.post.findUnique({
     where: { id },
@@ -18,22 +16,42 @@ export const getPostsById = asyncHandler(async (req, res, next) => {
   res.json(post);
 });
 
+export const getPostComments = asyncHandler(async (req, res, next) => {
+  const id = Number(req.params.id);
+  const comments = await prisma.post.findUnique({
+    where: { id },
+    select: { comments: true },
+  });
+  res.json(comments);
+});
+
+export const getPostLikes = asyncHandler(async (req, res, next) => {
+  const id = Number(req.params.id);
+  const likes = await prisma.post.findUnique({
+    where: { id },
+    select: { likes: true },
+  });
+  res.json(likes);
+});
+
 export const createPostByUserId = asyncHandler(async (req, res, next) => {
   const userId = Number(req.params.userId);
   const { title, content } = req.body;
-  const post = await prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
-      posts: {
-        create: [{ title, content }],
-      },
-    },
+  const post = await prisma.post.create({
+    data: { title, content, userId },
   });
+  res.json(post);
 });
 
-export const updatePost = asyncHandler(async (req, res, next) => {});
+export const updatePost = asyncHandler(async (req, res, next) => {
+  const id = Number(req.params.id);
+  const { title, content } = req.body;
+  const post = prisma.post.update({
+    data: { title, content },
+    where: { id },
+  });
+  res.json;
+});
 
 export const deletePost = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);

@@ -1,17 +1,28 @@
 import { Router } from "express";
+import {
+  createPostByUserId,
+  deletePost,
+  getAllPosts,
+  getPostById,
+  getPostComments,
+  getPostLikes,
+  updatePost,
+} from "../controllers/post.controller";
 
 const router = Router();
 
-router.get("/", (req, res) => {
-  res.send("Post router works");
-});
+router.get("/", getAllPosts);
 
-router.get("/:id");
+router.get("/:id", getPostById);
 
-router.post("/:userId");
+router.get("/comments/:id", getPostComments);
 
-router.put("/:id");
+router.get("/likes/:id", getPostLikes);
 
-router.delete("/:id");
+router.post("/:userId", createPostByUserId);
+
+router.put("/:id", updatePost);
+
+router.delete("/:id", deletePost);
 
 export default router;
