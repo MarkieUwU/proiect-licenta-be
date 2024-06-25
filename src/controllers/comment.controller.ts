@@ -1,10 +1,11 @@
-import { prisma } from "../../server";
+import { prisma } from "../server";
 import asyncHandler from "express-async-handler";
 
 export const addCommentToPost = asyncHandler(async (req, res, next) => {
-  const { text, userId, postId } = req.body;
+  const postId = Number(req.params.postId);
+  const { author, text, userId } = req.body;
   const comment = await prisma.comment.create({
-    data: { postId, userId, text, isEdited: false },
+    data: { postId: Number(postId), userId, text, author },
   });
   res.json(comment);
 });

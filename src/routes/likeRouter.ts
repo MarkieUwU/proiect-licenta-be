@@ -1,10 +1,16 @@
 import { Router } from "express";
-import { createLikeOnPost, deleteLike } from "../controllers/like.controller";
+import {
+  createLikeOnPost,
+  deleteLike,
+  getIfLiked,
+} from "../controllers/like.controller";
 
 const router = Router();
 
+router.get("/:userId", getIfLiked);
+
 router.post("/", createLikeOnPost);
 
-router.delete("/:id", deleteLike);
+router.delete("/", deleteLike);
 
 export default router;

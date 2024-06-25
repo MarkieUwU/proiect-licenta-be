@@ -9,18 +9,20 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  userName      String
-  email     String    @unique
-  createdAt DateTime  @default(now())
-  comments  Comment[]
-  likes     Like[]
-  posts     Post[]
+  id            Int       @id @default(autoincrement())
+  fullName      String    
+  username      String    @unique 
+  email         String    @unique
+  passwordHash  String
+  bio           String?
+  createdAt     DateTime  @default(now())
+  comments      Comment[]
+  likes         Like[]
+  posts         Post[]
 }
 
 model Post {
   id        Int       @id @default(autoincrement())
-  title     String
   content   String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -44,7 +46,8 @@ model Comment {
   text      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  isEdited  Boolean
+  author    String
+  isEdited  Boolean?
   postId    Int
   userId    Int
   post      Post     @relation(fields: [postId], references: [id])

@@ -1,8 +1,14 @@
 import asyncHandler from "express-async-handler";
-import { prisma } from "../../server";
+import { prisma } from "../server";
 
 export const getAllPosts = asyncHandler(async (req, res, next) => {
-  const posts = await prisma.post.findMany();
+  const posts = await prisma.post.findMany({
+    include: {
+      user: true,
+      comments: true,
+      likes: true,
+    },
+  });
 
   res.json(posts);
 });
@@ -36,18 +42,18 @@ export const getPostLikes = asyncHandler(async (req, res, next) => {
 
 export const createPostByUserId = asyncHandler(async (req, res, next) => {
   const userId = Number(req.params.userId);
-  const { title, content } = req.body;
+  const { content } = req.body;
   const post = await prisma.post.create({
-    data: { title, content, userId },
+    data: { content, userId },
   });
   res.json(post);
 });
 
 export const updatePost = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);
-  const { title, content } = req.body;
+  const { content } = req.body;
   const post = prisma.post.update({
-    data: { title, content },
+    data: { content },
     where: { id },
   });
   res.json;

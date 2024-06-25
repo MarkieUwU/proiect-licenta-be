@@ -1,34 +1,36 @@
 import { Router } from "express";
 import {
-  createUser,
+  registerUser,
   deleteUser,
-  getUserById,
-  getAllUsers,
-  updateUser,
+  getUserData,
+  getUsersList,
+  editProfile,
   getUserPosts,
+  loginUser,
+  getFilteredUsers,
 } from "../controllers/user.controller";
 import { validateRequestSchema } from "../middleware/validation-middleware";
 import {
-  createUserValidationSchema,
+  loginUserValidationSchema,
+  registerUserValidationSchema,
   updateUserValidationSchema,
 } from "../schemas/user-validation-schema";
 
 const router = Router();
 
-router.get("/", getAllUsers);
+router.get("/", getUsersList);
 
-router.get("/:id", getUserById);
+router.post("/filtered", getFilteredUsers);
+
+router.post("/data", getUserData);
 
 router.get("/posts/:id", getUserPosts);
 
-router.post("/", createUserValidationSchema, validateRequestSchema, createUser);
+router.post("/register", registerUser);
 
-router.put(
-  "/:id",
-  updateUserValidationSchema,
-  validateRequestSchema,
-  updateUser
-);
+router.post("/login", loginUser);
+
+router.put("/:id", editProfile);
 
 router.delete("/:id", deleteUser);
 

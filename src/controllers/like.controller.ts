@@ -1,5 +1,18 @@
-import { prisma } from "../../server";
+import { ApiError } from "../error/ApiError";
+import { prisma } from "../server";
 import asyncHandler from "express-async-handler";
+
+export const getIfLiked = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+  const { postId } = req.query;
+  const like = await prisma.like.findFirst({
+    where: {
+      AND: [{ userId: Number(userId) }, { postId: Number(postId) }],
+    },
+  });
+
+  res.json(!!like);
+});
 
 export const createLikeOnPost = asyncHandler(async (req, res, next) => {
   const { userId, postId } = req.body;
@@ -10,9 +23,18 @@ export const createLikeOnPost = asyncHandler(async (req, res, next) => {
 });
 
 export const deleteLike = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
-  const like = await prisma.like.delete({
-    where: { id },
+  const { userId, postId } = req.query;
+  const like = await prisma.like.findFirst({
+    where: {
+      AND: [{ userId: Number(userId) }, { postId: Number(postId) }],
+    },
   });
-  res.json(like);
+
+  if (!like) return next(ApiError.notFound("Something wrong happened"));
+
+  const deletedLike = await prisma.like.delete({
+    where: { id: like.id },
+  });
+
+  res.json(deletedLike);
 });

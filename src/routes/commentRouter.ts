@@ -7,7 +7,7 @@ import {
 
 const router = Router();
 
-router.post("/", addCommentToPost);
+router.post("/:postId", addCommentToPost);
 
 router.put("/:id", updateComment);
 

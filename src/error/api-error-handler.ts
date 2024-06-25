@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
 import { ApiError } from "./ApiError";
-import { Prisma } from "@prisma/client";
 
 export const apiErrorHandler = (
   err: any,
@@ -8,12 +7,18 @@ export const apiErrorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error(err);
+  console.error(err); // Log the error for debugging
 
   if (err instanceof ApiError) {
-    res.status(err.code).json(err.message);
-    return;
+    res.status(err.code).json({
+      status: err.status,
+      message: err.message,
+    });
+  } else {
+    // For unexpected errors
+    res.status(500).json({
+      status: "error",
+      message: "Internal Server Error",
+    });
   }
-
-  res.status(500).json("Internal Server Error");
 };

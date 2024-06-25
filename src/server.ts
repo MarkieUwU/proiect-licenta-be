@@ -1,10 +1,11 @@
 import express from "express";
-import routes from "./src/routes";
+import routes from "./routes";
 import { PrismaClient } from "@prisma/client";
-import { apiErrorHandler } from "./src/error/api-error-handler";
-import { prismaErrorHandler } from "./src/error/prisma-error-handler";
-import { routeNotFoundHandler } from "./src/middleware/route-not-found-handler";
+import { apiErrorHandler } from "./error/api-error-handler";
+import { prismaErrorHandler } from "./error/prisma-error-handler";
+import { routeNotFoundHandler } from "./middleware/route-not-found-handler";
 import cors from "cors";
+import "dotenv/config";
 
 const app = express();
 const port = 8000;

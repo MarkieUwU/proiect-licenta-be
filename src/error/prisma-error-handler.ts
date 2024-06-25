@@ -19,5 +19,5 @@ export const prismaErrorHandler = (
     }
   }
 
-  next();
+  next(err);
 };
