@@ -44,12 +44,22 @@ export const getUserData = asyncHandler(async (req, res, next) => {
   if (id) {
     user = await prisma.user.findUnique({
       where: { id },
+      include: {
+        posts: {
+          include: { user: true, comments: true, likes: true },
+        },
+      },
     });
   }
 
   if (username) {
     user = await prisma.user.findUnique({
       where: { username },
+      include: {
+        posts: {
+          include: { user: true, comments: true, likes: true },
+        },
+      },
     });
   }
 
