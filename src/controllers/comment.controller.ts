@@ -1,13 +1,27 @@
+import { ApiError } from "../error/ApiError";
 import { prisma } from "../server";
 import asyncHandler from "express-async-handler";
 
 export const addCommentToPost = asyncHandler(async (req, res, next) => {
   const postId = Number(req.params.postId);
-  const { author, text, userId } = req.body;
-  const comment = await prisma.comment.create({
-    data: { postId: Number(postId), userId, text, author },
+  const { text, userId } = req.body;
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      fullName: true
+    }
   });
-  res.json(comment);
+
+  if (user) {
+    const comment = await prisma.comment.create({
+    data: { postId: Number(postId), userId, text, author: user.fullName },
+  });
+    res.json(comment);
+  } else {
+    next(ApiError.notFound('User not found'));
+  }
 });
 
 export const updateComment = asyncHandler(async (req, res, next) => {
@@ -26,4 +40,15 @@ export const deleteComment = asyncHandler(async (req, res, next) => {
     where: { id },
   });
   res.json(comment);
+});
+
+export const getPostComments = asyncHandler(async (req, res, next) => {
+  const postId = Number(req.params.postId);
+  const comments = await prisma.comment.findMany({
+    orderBy: {
+      createdAt: 'desc'
+    },
+    where: { postId },
+  });
+  res.json(comments);
 });

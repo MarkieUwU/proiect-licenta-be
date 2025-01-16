@@ -5,10 +5,26 @@ export const getAllPosts = asyncHandler(async (req, res, next) => {
   const posts = await prisma.post.findMany({
     include: {
       user: true,
-      comments: true,
       likes: true,
-    },
+      comments: true,
+    }
   });
+
+  res.json(posts);
+});
+
+export const getFilteredPosts = asyncHandler(async (req, res, next) => {
+  const sortCriterias = req.body;
+  const request = {
+    ...(sortCriterias ? { orderBy: sortCriterias } : {}),
+    include: {
+      user: true,
+      likes: true,
+      comments: true,
+    }
+  };
+
+  const posts = await prisma.post.findMany(request)
 
   res.json(posts);
 });
@@ -22,15 +38,6 @@ export const getPostById = asyncHandler(async (req, res, next) => {
   res.json(post);
 });
 
-export const getPostComments = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
-  const comments = await prisma.post.findUnique({
-    where: { id },
-    select: { comments: true },
-  });
-  res.json(comments);
-});
-
 export const getPostLikes = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);
   const likes = await prisma.post.findUnique({
@@ -42,9 +49,9 @@ export const getPostLikes = asyncHandler(async (req, res, next) => {
 
 export const createPostByUserId = asyncHandler(async (req, res, next) => {
   const userId = Number(req.params.userId);
-  const { content } = req.body;
+  const { title, content } = req.body;
   const post = await prisma.post.create({
-    data: { content, userId },
+    data: { title, content, userId },
   });
   res.json(post);
 });
@@ -56,7 +63,7 @@ export const updatePost = asyncHandler(async (req, res, next) => {
     data: { content },
     where: { id },
   });
-  res.json;
+  res.json(post);
 });
 
 export const deletePost = asyncHandler(async (req, res, next) => {

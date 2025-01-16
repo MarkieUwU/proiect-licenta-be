@@ -2,10 +2,13 @@ import { Router } from "express";
 import {
   addCommentToPost,
   deleteComment,
+  getPostComments,
   updateComment,
 } from "../controllers/comment.controller";
 
 const router = Router();
+
+router.get("/:postId", getPostComments);
 
 router.post("/:postId", addCommentToPost);
 

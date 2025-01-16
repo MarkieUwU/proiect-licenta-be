@@ -9,20 +9,33 @@ datasource db {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
-  fullName      String    
-  username      String    @unique 
-  email         String    @unique
-  passwordHash  String
-  bio           String?
-  createdAt     DateTime  @default(now())
-  comments      Comment[]
-  likes         Like[]
-  posts         Post[]
+  id           Int          @id @default(autoincrement())
+  fullName     String
+  username     String       @unique
+  email        String       @unique
+  passwordHash String
+  bio          String?
+  createdAt    DateTime     @default(now())
+  comments     Comment[]
+  likes        Like[]
+  posts        Post[]
+  follower     Connection[] @relation("follower")
+  following    Connection[] @relation("following")
+}
+
+model Connection {
+  follower    User @relation("follower", fields: [followerId], references: [id])
+  followerId  Int
+  following   User @relation("following", fields: [followingId], references: [id])
+  followingId Int
+  pending     Boolean
+
+  @@id([followingId, followerId])
 }
 
 model Post {
   id        Int       @id @default(autoincrement())
+  title     String
   content   String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

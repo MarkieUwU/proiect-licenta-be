@@ -3,8 +3,8 @@ import {
   createPostByUserId,
   deletePost,
   getAllPosts,
+  getFilteredPosts,
   getPostById,
-  getPostComments,
   getPostLikes,
   updatePost,
 } from "../controllers/post.controller";
@@ -13,9 +13,9 @@ const router = Router();
 
 router.get("/", getAllPosts);
 
-router.get("/:id", getPostById);
+router.post("/filter", getFilteredPosts);
 
-router.get("/comments/:id", getPostComments);
+router.get("/:id", getPostById);
 
 router.get("/likes/:id", getPostLikes);
 
