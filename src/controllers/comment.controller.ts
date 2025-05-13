@@ -52,3 +52,8 @@ export const getPostComments = asyncHandler(async (req, res, next) => {
   });
   res.json(comments);
 });
+
+export const getAllComments = asyncHandler(async (req, res, next) => {
+  const comments = await prisma.comment.findMany();
+  res.json(comments);
+})

@@ -4,8 +4,7 @@ import {
   deletePost,
   getAllPosts,
   getFilteredPosts,
-  getPostById,
-  getPostLikes,
+  getTopPostsByLikes,
   updatePost,
 } from "../controllers/post.controller";
 
@@ -15,14 +14,12 @@ router.get("/", getAllPosts);
 
 router.post("/filter", getFilteredPosts);
 
-router.get("/:id", getPostById);
-
-router.get("/likes/:id", getPostLikes);
-
 router.post("/:userId", createPostByUserId);
 
 router.put("/:id", updatePost);
 
 router.delete("/:id", deletePost);
+
+router.get('/top/likes', getTopPostsByLikes);
 
 export default router;

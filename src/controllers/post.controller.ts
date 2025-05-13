@@ -1,5 +1,6 @@
-import asyncHandler from "express-async-handler";
-import { prisma } from "../server";
+import asyncHandler from 'express-async-handler';
+import { prisma } from '../server';
+import { PrivacyOptions } from '../models/privacy-optinos.enum';
 
 export const getAllPosts = asyncHandler(async (req, res, next) => {
   const posts = await prisma.post.findMany({
@@ -7,60 +8,65 @@ export const getAllPosts = asyncHandler(async (req, res, next) => {
       user: true,
       likes: true,
       comments: true,
-    }
+    },
   });
 
   res.json(posts);
 });
 
 export const getFilteredPosts = asyncHandler(async (req, res, next) => {
-  const sortCriterias = req.body;
+  const { sortCriterias, userId } = req.body;
   const request = {
     ...(sortCriterias ? { orderBy: sortCriterias } : {}),
     include: {
-      user: true,
+      user: {
+        include: {
+          settings: true,
+          follower: true,
+          following: true
+        },
+      },
       likes: true,
       comments: true,
-    }
+    },
   };
 
-  const posts = await prisma.post.findMany(request)
+  const posts = await prisma.post.findMany(request);
 
-  res.json(posts);
-});
+  const finalResult = posts.filter((post) => {
+    if (post.user.id === userId) return true;
 
-export const getPostById = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
-  const post = await prisma.post.findUnique({
-    where: { id },
+    const privacy = post.user.settings?.postsPrivacy;
+    const connections = post.user.follower.map((connection) => connection.followingId);
+    connections.push(...post.user.following.map((connection) => connection.followerId));
+
+    switch (privacy) {
+      case PrivacyOptions.public:
+        return true;
+      case PrivacyOptions.private:
+        return false;
+      case PrivacyOptions.connections:
+        return connections.includes(Number(userId));
+    }
   });
 
-  res.json(post);
-});
-
-export const getPostLikes = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
-  const likes = await prisma.post.findUnique({
-    where: { id },
-    select: { likes: true },
-  });
-  res.json(likes);
+  res.json(finalResult);
 });
 
 export const createPostByUserId = asyncHandler(async (req, res, next) => {
   const userId = Number(req.params.userId);
-  const { title, content } = req.body;
+  const { title, image, content } = req.body;
   const post = await prisma.post.create({
-    data: { title, content, userId },
+    data: { title, image, content, userId },
   });
   res.json(post);
 });
 
 export const updatePost = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);
-  const { content } = req.body;
-  const post = prisma.post.update({
-    data: { content },
+  const { title, image, content } = req.body;
+  const post = await prisma.post.update({
+    data: { title, image, content },
     where: { id },
   });
   res.json(post);
@@ -68,9 +74,37 @@ export const updatePost = asyncHandler(async (req, res, next) => {
 
 export const deletePost = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);
+  await prisma.comment.deleteMany({
+    where: {
+      postId: id
+    }
+  });
+  await prisma.like.deleteMany({
+    where: {
+      postId: id
+    }
+  });
+
   const post = await prisma.post.delete({
     where: { id },
   });
 
   res.json(post);
+});
+  
+export const getTopPostsByLikes = asyncHandler(async (req, res, next) => {
+  const posts = await prisma.post.findMany({
+    take: 5,
+    include: {
+      likes: true,
+      user: true,
+    },
+    orderBy: {
+      likes: {
+        _count: 'desc',
+      },
+    },
+  });
+
+  res.json(posts);
 });

@@ -9,18 +9,21 @@ datasource db {
 }
 
 model User {
-  id           Int          @id @default(autoincrement())
-  fullName     String
-  username     String       @unique
-  email        String       @unique
-  passwordHash String
-  bio          String?
-  createdAt    DateTime     @default(now())
-  comments     Comment[]
-  likes        Like[]
-  posts        Post[]
-  follower     Connection[] @relation("follower")
-  following    Connection[] @relation("following")
+  id            Int          @id @default(autoincrement())
+  profileImage  String
+  fullName      String
+  username      String       @unique
+  email         String       @unique
+  passwordHash  String
+  bio           String?
+  gender        String?
+  createdAt     DateTime     @default(now())
+  settings      Settings?
+  comments      Comment[]
+  likes         Like[]
+  posts         Post[]
+  follower      Connection[] @relation("follower")
+  following     Connection[] @relation("following")
 }
 
 model Connection {
@@ -36,6 +39,7 @@ model Connection {
 model Post {
   id        Int       @id @default(autoincrement())
   title     String
+  image     String
   content   String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -65,4 +69,15 @@ model Comment {
   userId    Int
   post      Post     @relation(fields: [postId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+}
+
+model Settings {
+  id                    Int     @id @default(autoincrement())
+  theme                 String
+  language              String
+  detailsPrivacy        String
+  connectionsPrivacy    String
+  postsPrivacy          String
+  userId                Int     @unique
+  user                  User    @relation(fields: [userId], references: [id])
 }
