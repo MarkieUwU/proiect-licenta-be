@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -17,11 +17,14 @@ model User {
   passwordHash  String
   bio           String?
   gender        String?
+  role          String       @default("USER")
   createdAt     DateTime     @default(now())
   settings      Settings?
   comments      Comment[]
   likes         Like[]
   posts         Post[]
+  reports       Report[]
+  notifications Notification[]
   follower      Connection[] @relation("follower")
   following     Connection[] @relation("following")
 }
@@ -41,11 +44,13 @@ model Post {
   title     String
   image     String
   content   String
+  status    String    @default("active")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   userId    Int
   comments  Comment[]
   likes     Like[]
+  reports   Report[]
   user      User      @relation(fields: [userId], references: [id])
 }
 
@@ -64,11 +69,13 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   author    String
+  status    String   @default("active")
   isEdited  Boolean?
   postId    Int
   userId    Int
   post      Post     @relation(fields: [postId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+  reports   Report[]
 }
 
 model Settings {
@@ -81,3 +88,28 @@ model Settings {
   userId                Int     @unique
   user                  User    @relation(fields: [userId], references: [id])
 }
+
+model Report {
+  id        Int      @id @default(autoincrement())
+  reason    String
+  createdAt DateTime @default(now())
+  postId    Int
+  userId    Int
+  commentId Int?
+  post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  comment   Comment? @relation(fields: [commentId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String
+  message   String
+  data      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+} 

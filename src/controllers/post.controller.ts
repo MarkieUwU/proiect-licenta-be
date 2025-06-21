@@ -1,6 +1,8 @@
 import asyncHandler from 'express-async-handler';
 import { prisma } from '../server';
-import { PrivacyOptions } from '../models/privacy-optinos.enum';
+import { PrivacyOptions } from '../models/enums/privacy-optinos.enum';
+import { NotificationService } from '../services/notification.service';
+import { PostStatus } from '../models/enums/post-status.enum';
 
 export const getAllPosts = asyncHandler(async (req, res, next) => {
   const posts = await prisma.post.findMany({
@@ -45,7 +47,7 @@ export const getFilteredPosts = asyncHandler(async (req, res, next) => {
         return true;
       case PrivacyOptions.private:
         return false;
-      case PrivacyOptions.connections:
+      case PrivacyOptions.followers:
         return connections.includes(Number(userId));
     }
   });
@@ -74,22 +76,56 @@ export const updatePost = asyncHandler(async (req, res, next) => {
 
 export const deletePost = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);
-  await prisma.comment.deleteMany({
-    where: {
-      postId: id
-    }
-  });
-  await prisma.like.deleteMany({
-    where: {
-      postId: id
-    }
-  });
+  const userId = req.user.id;
+  const isAdmin = req.user.role === "ADMIN";
 
-  const post = await prisma.post.delete({
+  // Get the post first to check ownership
+  const post = await prisma.post.findUnique({
     where: { id },
+    include: {
+      user: true
+    }
   });
 
-  res.json(post);
+  if (!post) {
+    res.status(404);
+    throw new Error("Post not found");
+  }
+
+  // Check if user is authorized to delete
+  if (!isAdmin && post.userId !== userId) {
+    res.status(403);
+    throw new Error("Not authorized to delete this post");
+  }
+
+  // Delete related records
+  await Promise.all([
+    prisma.comment.deleteMany({
+      where: { postId: id }
+    }),
+    prisma.like.deleteMany({
+      where: { postId: id }
+    }),
+    prisma.report.deleteMany({
+      where: { postId: id }
+    })
+  ]);
+
+  // Delete the post
+  const deletedPost = await prisma.post.delete({
+    where: { id }
+  });
+
+  // If admin deleted the post, notify the user
+  if (isAdmin) {
+    await NotificationService.notifyPostStatusChange(
+      id,
+      PostStatus.ARCHIVED,
+      "Post was deleted by an administrator"
+    );
+  }
+
+  res.json(deletedPost);
 });
   
 export const getTopPostsByLikes = asyncHandler(async (req, res, next) => {

@@ -1,6 +1,7 @@
 import type { Post } from "@prisma/client";
-import type { Theme } from "./theme.enum";
-import type { LanguageCodes } from "./language-code.enum";
+import type { Theme } from "./enums/theme.enum";
+import type { LanguageCodes } from "./enums/language-code.enum";
+import type { Role } from "./enums/role.enum";
 
 export type UserProfile = {
   id: number;
@@ -28,4 +29,5 @@ export type LoggedUser = {
   email: string;
   theme: Theme;
   language: LanguageCodes;
+  role: Role;
 };

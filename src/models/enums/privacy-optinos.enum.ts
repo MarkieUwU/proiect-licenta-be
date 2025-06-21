@@ -1,5 +1,5 @@
 export enum PrivacyOptions {
   public = 'public',
-  connections = 'connections',
+  followers = 'followers',
   private = 'private'
 }
