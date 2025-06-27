@@ -1,0 +1,93 @@
+erDiagram
+    User {
+        int id PK
+        string profileImage
+        string fullName
+        string username UK
+        string email UK
+        string passwordHash
+        string bio
+        string gender
+        string role
+        datetime createdAt
+    }
+    
+    Connection {
+        int followerId FK
+        int followingId FK
+        boolean pending
+    }
+    
+    Post {
+        int id PK
+        string title
+        string image
+        string content
+        string status
+        datetime createdAt
+        datetime updatedAt
+        int userId FK
+    }
+    
+    Like {
+        int id PK
+        datetime createdAt
+        int userId FK
+        int postId FK
+    }
+    
+    Comment {
+        int id PK
+        string text
+        datetime createdAt
+        datetime updatedAt
+        string author
+        string status
+        boolean isEdited
+        int postId FK
+        int userId FK
+    }
+    
+    Settings {
+        int id PK
+        string theme
+        string language
+        string detailsPrivacy
+        string connectionsPrivacy
+        string postsPrivacy
+        int userId FK UK
+    }
+    
+    Report {
+        int id PK
+        string reason
+        datetime createdAt
+        int postId FK
+        int userId FK
+        int commentId FK
+    }
+    
+    Notification {
+        int id PK
+        int userId FK
+        string type
+        string message
+        string data
+        boolean read
+        datetime createdAt
+    }
+    
+    User ||--o{ Connection : "follower"
+    User ||--o{ Connection : "following"
+    User ||--o{ Post : "creates"
+    User ||--o{ Like : "gives"
+    User ||--o{ Comment : "writes"
+    User ||--o{ Report : "submits"
+    User ||--o{ Notification : "receives"
+    User ||--|| Settings : "has"
+    
+    Post ||--o{ Like : "receives"
+    Post ||--o{ Comment : "has"
+    Post ||--o{ Report : "reported_in"
+    
+    Comment ||--o{ Report : "reported_in" 

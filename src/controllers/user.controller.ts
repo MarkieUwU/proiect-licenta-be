@@ -212,13 +212,21 @@ export const loginUser = asyncHandler(async (req, res, next) => {
     return next(ApiError.unauthorized('Username or password is incorrect'));
   }
 
-  await prisma.settings.update({
+  await prisma.settings.upsert({
     where: {
       userId: user.id,
     },
-    data: {
+    update: {
       theme: theme || Theme.dark,
       language,
+    },
+    create: {
+      theme: theme || Theme.dark,
+      language: language || 'en',
+      detailsPrivacy: PrivacyOptions.public,
+      connectionsPrivacy: PrivacyOptions.public,
+      postsPrivacy: PrivacyOptions.public,
+      userId: user.id,
     },
   });
 
@@ -762,11 +770,19 @@ export const updateSettings = asyncHandler(async (req, res, next) => {
     req.body;
   const userId = Number(req.params.userId);
 
-  const settings = await prisma.settings.update({
+  const settings = await prisma.settings.upsert({
     where: {
       userId,
     },
-    data: { language, theme, detailsPrivacy, connectionsPrivacy, postsPrivacy },
+    update: { language, theme, detailsPrivacy, connectionsPrivacy, postsPrivacy },
+    create: {
+      language: language || 'en',
+      theme: theme || Theme.dark,
+      detailsPrivacy: detailsPrivacy || PrivacyOptions.public,
+      connectionsPrivacy: connectionsPrivacy || PrivacyOptions.public,
+      postsPrivacy: postsPrivacy || PrivacyOptions.public,
+      userId,
+    },
   });
 
   res.json(settings);
@@ -774,11 +790,25 @@ export const updateSettings = asyncHandler(async (req, res, next) => {
 
 export const getSettings = asyncHandler(async (req, res, next) => {
   const userId = Number(req.params.userId);
-  const settings = await prisma.settings.findUnique({
+  let settings = await prisma.settings.findUnique({
     where: {
       userId,
     },
   });
+
+  if (!settings) {
+    // Create default settings if they don't exist
+    settings = await prisma.settings.create({
+      data: {
+        language: 'en',
+        theme: Theme.dark,
+        detailsPrivacy: PrivacyOptions.public,
+        connectionsPrivacy: PrivacyOptions.public,
+        postsPrivacy: PrivacyOptions.public,
+        userId,
+      },
+    });
+  }
 
   res.json(settings);
 });

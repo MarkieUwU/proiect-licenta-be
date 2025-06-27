@@ -49,4 +49,36 @@ export const markAllAsRead = asyncHandler(async (req, res) => {
   });
 
   res.json({ success: true });
+});
+
+export const deleteNotification = asyncHandler(async (req, res, next) => {
+  const { notificationId } = req.params;
+  const userId = req.user.id;
+
+  // First check if the notification exists and belongs to the user
+  const notification = await prisma.notification.findFirst({
+    where: {
+      id: Number(notificationId),
+      userId,
+    },
+  });
+
+  if (!notification) {
+    res.status(404).json({ message: 'Notification not found' });
+    return;
+  }
+
+  // Only allow deletion of read notifications
+  if (!notification.read) {
+    res.status(400).json({ message: 'Cannot delete unread notifications' });
+    return;
+  }
+
+  await prisma.notification.delete({
+    where: {
+      id: Number(notificationId),
+    },
+  });
+
+  res.json({ success: true });
 }); 

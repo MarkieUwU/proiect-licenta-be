@@ -29,6 +29,18 @@ async function createTestUsers() {
       },
     });
     
+    // Create Settings for admin user
+    await prisma.settings.create({
+      data: {
+        theme: 'dark',
+        language: 'en',
+        detailsPrivacy: 'public',
+        connectionsPrivacy: 'public',
+        postsPrivacy: 'public',
+        userId: adminUser.id,
+      },
+    });
+    
     users.push(adminUser);
     userPasswords.push({ username: 'admin', password: adminPassword });
     
@@ -55,6 +67,18 @@ async function createTestUsers() {
           bio,
           gender,
           role: 'USER',
+        },
+      });
+      
+      // Create Settings for regular user
+      await prisma.settings.create({
+        data: {
+          theme: faker.helpers.arrayElement(['light', 'dark']),
+          language: faker.helpers.arrayElement(['en', 'ro']),
+          detailsPrivacy: 'public',
+          connectionsPrivacy: 'public',
+          postsPrivacy: 'public',
+          userId: user.id,
         },
       });
       
