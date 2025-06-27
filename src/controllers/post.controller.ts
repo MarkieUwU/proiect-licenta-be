@@ -2,7 +2,8 @@ import asyncHandler from 'express-async-handler';
 import { prisma } from '../server';
 import { PrivacyOptions } from '../models/enums/privacy-optinos.enum';
 import { NotificationService } from '../services/notification.service';
-import { PostStatus } from '../models/enums/post-status.enum';
+import { ContentStatus } from '../models/enums/content-status.enum';
+import { Role } from '../models/enums/role.enum';
 
 export const getAllPosts = asyncHandler(async (req, res, next) => {
   const posts = await prisma.post.findMany({
@@ -77,7 +78,7 @@ export const updatePost = asyncHandler(async (req, res, next) => {
 export const deletePost = asyncHandler(async (req, res, next) => {
   const id = Number(req.params.id);
   const userId = req.user.id;
-  const isAdmin = req.user.role === "ADMIN";
+  const isAdmin = req.user.role === Role.ADMIN;
 
   // Get the post first to check ownership
   const post = await prisma.post.findUnique({
@@ -120,7 +121,7 @@ export const deletePost = asyncHandler(async (req, res, next) => {
   if (isAdmin) {
     await NotificationService.notifyPostStatusChange(
       id,
-      PostStatus.ARCHIVED,
+      ContentStatus.ARCHIVED,
       "Post was deleted by an administrator"
     );
   }

@@ -1,6 +1,7 @@
 import { ApiError } from "../error/ApiError";
 import { prisma } from "../server";
 import asyncHandler from "express-async-handler";
+import { NotificationService } from "../services/notification.service";
 
 export const getAllLikes = asyncHandler(async (req, res, next) => {
   const likes = await prisma.like.findMany();
@@ -24,6 +25,10 @@ export const createLikeOnPost = asyncHandler(async (req, res, next) => {
   const like = await prisma.like.create({
     data: { postId, userId },
   });
+
+  // Send notification to post owner
+  await NotificationService.notifyPostLiked(postId, userId);
+
   res.json(like);
 });
 

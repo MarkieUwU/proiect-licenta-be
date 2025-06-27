@@ -32,6 +32,7 @@ router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/password/reset/request", sendPasswordResetEmail);
 router.get('/password/reset/token/verify/:token', verifyResetToken);
+router.put('/password/reset/:userId', resetPassword);
 
 // Protected routes
 router.use(isAuthenticated);
@@ -39,7 +40,6 @@ router.use(isAuthenticated);
 router.get("/", getUsersList);
 router.get('/posts/:id', getUserPosts);
 router.post("/details", getUserDetails);
-router.put('/password/reset/:userId', resetPassword);
 router.put("/:id", editProfile);
 router.get("/connections/all", getAllConnections);
 router.post("/connections/:id", getConnections);

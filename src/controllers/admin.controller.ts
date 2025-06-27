@@ -3,7 +3,7 @@ import { prisma } from '../server';
 import { ApiError } from '../error/ApiError';
 import { NotificationService } from '../services/notification.service';
 import { Role } from '../models/enums/role.enum';
-import { PostStatus } from '../models/enums/post-status.enum';
+import { ContentStatus } from '../models/enums/content-status.enum';
 
 export const getDashboardStats = asyncHandler(async (req, res) => {
   const [
@@ -21,6 +21,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
+        profileImage: true,
         username: true,
         fullName: true,
         email: true,
@@ -33,6 +34,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       include: {
         user: {
           select: {
+            profileImage: true,
             username: true,
             fullName: true
           }
@@ -51,7 +53,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
 });
 
 export const getUsers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search } = req.query;
+  const { page = 1, limit = 10, search, sort = "createdAt", order = "desc" } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
   const where = search ? {
@@ -62,12 +64,14 @@ export const getUsers = asyncHandler(async (req, res) => {
     ]
   } : {};
 
+  const orderBy = { [sort as string]: order as "asc" | "desc" };
+
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
       skip,
       take: Number(limit),
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       select: {
         id: true,
         username: true,
@@ -116,7 +120,7 @@ export const updateUserRole = asyncHandler(async (req, res, next) => {
 });
 
 export const getAdminPosts = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search = "", status = PostStatus.ALL } = req.query;
+  const { page = 1, limit = 10, search = "", status = ContentStatus.ALL, sort = "createdAt", order = "desc" } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
   const where = {
@@ -126,22 +130,29 @@ export const getAdminPosts = asyncHandler(async (req, res) => {
         { content: { contains: search as string } }
       ]
     } : {}),
-    ...(status !== PostStatus.ALL ? { status: status as PostStatus } : {})
+    ...(status !== ContentStatus.ALL ? { status: status as ContentStatus } : {})
   };
 
-  const [posts, total] = await Promise.all([
+  const orderBy = { [sort as string]: order as "asc" | "desc" };
+
+  const [response, total] = await Promise.all([
     prisma.post.findMany({
       where,
       include: {
         user: {
           select: {
             id: true,
+            profileImage: true,
             username: true,
             fullName: true
           }
         },
-        likes: true,
-        comments: true,
+        _count: {
+          select: {
+            likes: true,
+            comments: true
+          }
+        },
         reports: {
           include: {
             user: {
@@ -154,10 +165,19 @@ export const getAdminPosts = asyncHandler(async (req, res) => {
       },
       skip,
       take: Number(limit),
-      orderBy: { createdAt: "desc" }
+      orderBy
     }),
     prisma.post.count({ where })
   ]);
+
+  let posts = response.map(post => {
+    return {
+      ...post,
+      comments: post._count.comments,
+      likes: post._count.likes,
+      reports: post.reports.length
+    }
+  });
 
   res.json({
     posts,
@@ -174,7 +194,7 @@ export const updatePostStatus = asyncHandler(async (req, res) => {
     where: { id: Number(id) },
     data: { 
       status,
-      ...(status === PostStatus.ARCHIVED && {
+      ...(status === ContentStatus.ARCHIVED && {
         updatedAt: new Date()
       })
     },
@@ -211,22 +231,123 @@ export const getPostReports = asyncHandler(async (req, res) => {
   res.json(reports);
 });
 
+export const getAllPostReports = asyncHandler(async (req, res) => {
+  const { postId, reporterId, postTitle, reporterUsername, page = 1, limit = 20, sort = "createdAt", order = "desc" } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const where: any = {
+    commentId: null, // Only post reports, not comment reports
+    ...(postId ? { postId: Number(postId) } : {}),
+    ...(reporterId ? { userId: Number(reporterId) } : {}),
+    ...(postTitle ? {
+      post: {
+        title: { contains: postTitle as string, mode: 'insensitive' }
+      }
+    } : {}),
+    ...(reporterUsername ? {
+      user: {
+        username: { contains: reporterUsername as string, mode: 'insensitive' }
+      }
+    } : {})
+  };
+
+  let orderBy: any;
+  if (sort === 'postTitle' || sort === 'reporterUsername') {
+    orderBy = { createdAt: 'desc' as 'asc' | 'desc' };
+  } else {
+    orderBy = { [sort as string]: order as 'asc' | 'desc' };
+  }
+
+  const [reports, total] = await Promise.all([
+    prisma.report.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        post: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                fullName: true
+              }
+            }
+          }
+        }
+      },
+      skip,
+      take: Number(limit),
+      orderBy
+    }),
+    prisma.report.count({ where })
+  ]);
+
+  let processedReports = reports.map(report => ({
+    ...report,
+    postTitle: report.post.title,
+    reporterUsername: report.user.username
+  }));
+
+  // Handle sorting by nested fields after fetching
+  if (sort === "postTitle") {
+    processedReports.sort((a, b) => {
+      const aValue = a.postTitle.toLowerCase();
+      const bValue = b.postTitle.toLowerCase();
+      
+      if (order === "asc") {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
+  } else if (sort === "reporterUsername") {
+    processedReports.sort((a, b) => {
+      const aValue = a.reporterUsername.toLowerCase();
+      const bValue = b.reporterUsername.toLowerCase();
+      
+      if (order === "asc") {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
+  }
+
+  res.json({
+    reports: processedReports,
+    total,
+    pages: Math.ceil(total / Number(limit))
+  });
+});
+
 export const getAdminComments = asyncHandler(async (req, res) => {
-  const { search = '', status, page = 1, pageSize = 20 } = req.query;
+  const { search = '', status, page = 1, pageSize = 20, sort = "createdAt", order = "desc" } = req.query;
   const skip = (Number(page) - 1) * Number(pageSize);
 
   const where: any = {
-    ...(status ? { status } : {}),
+    ...(status !== ContentStatus.ALL ? { status: status as ContentStatus } : {}),
     ...(search
       ? {
           OR: [
-            { content: { contains: search, mode: 'insensitive' } },
+            { text: { contains: search, mode: 'insensitive' } },
             { user: { username: { contains: search, mode: 'insensitive' } } },
             { post: { title: { contains: search, mode: 'insensitive' } } },
           ],
         }
       : {}),
   };
+
+  let orderBy: any;
+  orderBy = { [sort as string]: order as "asc" | "desc" };
 
   const [comments, total] = await Promise.all([
     prisma.comment.findMany({
@@ -246,12 +367,17 @@ export const getAdminComments = asyncHandler(async (req, res) => {
       },
       skip,
       take: Number(pageSize),
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     }),
     prisma.comment.count({ where }),
   ]);
 
-  res.json({ comments, total });
+  let processedComments = comments.map(comment => ({
+    ...comment,
+    reports: comment.reports
+  }));
+
+  res.json({ comments: processedComments, total });
 });
 
 export const updateCommentStatus = asyncHandler(async (req, res) => {
@@ -275,4 +401,107 @@ export const getCommentReports = asyncHandler(async (req, res) => {
     include: { user: { select: { id: true, username: true } } },
   });
   res.json(reports);
+});
+
+export const getAllCommentReports = asyncHandler(async (req, res) => {
+  const { commentId, reporterId, commentContent, reporterUsername, page = 1, limit = 20, sort = "createdAt", order = "desc" } = req.query;
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const where: any = {
+    commentId: { not: null }, // Only comment reports, not post reports
+    ...(commentId ? { commentId: Number(commentId) } : {}),
+    ...(reporterId ? { userId: Number(reporterId) } : {}),
+    ...(commentContent ? {
+      comment: {
+        text: { contains: commentContent as string, mode: 'insensitive' }
+      }
+    } : {}),
+    ...(reporterUsername ? {
+      user: {
+        username: { contains: reporterUsername as string, mode: 'insensitive' }
+      }
+    } : {})
+  };
+
+  let orderBy: any;
+  if (sort === 'commentContent' || sort === 'reporterUsername') {
+    orderBy = { createdAt: 'desc' as 'asc' | 'desc' };
+  } else {
+    orderBy = { [sort as string]: order as 'asc' | 'desc' };
+  }
+
+  const [reports, total] = await Promise.all([
+    prisma.report.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            fullName: true
+          }
+        },
+        comment: {
+          select: {
+            id: true,
+            text: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                fullName: true
+              }
+            },
+            post: {
+              select: {
+                id: true,
+                title: true
+              }
+            }
+          }
+        }
+      },
+      skip,
+      take: Number(limit),
+      orderBy
+    }),
+    prisma.report.count({ where })
+  ]);
+
+  let processedReports = reports.map(report => ({
+    ...report,
+    commentContent: report.comment?.text || '',
+    reporterUsername: report.user.username
+  }));
+
+  // Handle sorting by nested fields after fetching
+  if (sort === "commentContent") {
+    processedReports.sort((a, b) => {
+      const aValue = a.commentContent.toLowerCase();
+      const bValue = b.commentContent.toLowerCase();
+      
+      if (order === "asc") {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
+  } else if (sort === "reporterUsername") {
+    processedReports.sort((a, b) => {
+      const aValue = a.reporterUsername.toLowerCase();
+      const bValue = b.reporterUsername.toLowerCase();
+      
+      if (order === "asc") {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
+  }
+
+  res.json({
+    reports: processedReports,
+    total,
+    pages: Math.ceil(total / Number(limit))
+  });
 });

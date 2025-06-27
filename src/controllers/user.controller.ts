@@ -297,10 +297,12 @@ export const verifyResetToken = asyncHandler(async (req, res, next) => {
 
   jwt.verify(token, resetJwtSecret, (err, decoded) => {
     if (err?.name === 'TokenExpiredError') {
+      console.log('here');
       return next(ApiError.unauthorized('Password reset link has expired.'));
     }
 
     if (err) {
+      console.log('or here');
       return next(ApiError.unauthorized('Password reset link is invalid.'));
     }
 

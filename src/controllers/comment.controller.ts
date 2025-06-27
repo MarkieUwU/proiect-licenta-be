@@ -1,6 +1,7 @@
 import { ApiError } from "../error/ApiError";
 import { prisma } from "../server";
 import asyncHandler from "express-async-handler";
+import { NotificationService } from "../services/notification.service";
 
 export const addCommentToPost = asyncHandler(async (req, res, next) => {
   const postId = Number(req.params.postId);
@@ -18,6 +19,10 @@ export const addCommentToPost = asyncHandler(async (req, res, next) => {
     const comment = await prisma.comment.create({
     data: { postId: Number(postId), userId, text, author: user.fullName },
   });
+
+    // Send notification to post owner and mentioned users
+    await NotificationService.notifyNewComment(postId, comment.id, userId);
+
     res.json(comment);
   } else {
     next(ApiError.notFound('User not found'));

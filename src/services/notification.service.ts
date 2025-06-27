@@ -1,6 +1,6 @@
 import { prisma } from "../server";
 import { NotificationType } from "../models/enums/notification-type.enum";
-import { PostStatus } from "../models/enums/post-status.enum";
+import { ContentStatus } from "../models/enums/content-status.enum";
 
 export class NotificationService {
   static async createNotification({
@@ -69,7 +69,7 @@ export class NotificationService {
   }
 
   // Post Status Change Notifications
-  static async notifyPostStatusChange(postId: number, newStatus: PostStatus, reason?: string) {
+  static async notifyPostStatusChange(postId: number, newStatus: ContentStatus, reason?: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
       include: { user: true },
@@ -78,21 +78,28 @@ export class NotificationService {
     if (!post) return;
 
     let message = "";
+    let notificationType: NotificationType;
+    
     switch (newStatus) {
-      case PostStatus.ARCHIVED:
+      case ContentStatus.ARCHIVED:
         message = `Your post "${post.title}" has been archived. Reason: ${reason}`;
+        notificationType = NotificationType.POST_ARCHIVED;
         break;
-      case PostStatus.ACTIVE:
+      case ContentStatus.ACTIVE:
         message = `Your post "${post.title}" has been approved and is now visible`;
+        notificationType = NotificationType.POST_APPROVED;
         break;
-      case PostStatus.REPORTED:
+      case ContentStatus.REPORTED:
         message = `Your post "${post.title}" has been reported and is under review`;
+        notificationType = NotificationType.POST_REPORTED;
         break;
+      default:
+        return; // Don't send notification for unknown status
     }
 
     await this.createNotification({
       userId: post.userId,
-      type: NotificationType[`POST_${newStatus}` as keyof typeof NotificationType],
+      type: notificationType,
       message,
       data: { 
         postId,
