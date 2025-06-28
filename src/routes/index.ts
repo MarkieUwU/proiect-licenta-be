@@ -1,10 +1,10 @@
 import { Router } from "express";
-import userRouter from "./userRouter";
-import postRouter from "./postRouter";
-import likeRouter from "./likeRouter";
-import commentRouter from "./commentRouter";
-import adminRouter from "./adminRouter";
-import reportRouter from './reportRouter';
+import userRouter from "./user.routes";
+import postRouter from "./post.routes";
+import likeRouter from "./like.routes";
+import commentRouter from "./comment.routes";
+import adminRouter from "./admin.routes";
+import reportRouter from './report.routes';
 import notificationRouter from './notification.routes';
 
 const routes = Router();

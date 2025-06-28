@@ -27,14 +27,12 @@ import {
 
 const router = Router();
 
-// Public routes
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/password/reset/request", sendPasswordResetEmail);
 router.get('/password/reset/token/verify/:token', verifyResetToken);
 router.put('/password/reset/:userId', resetPassword);
 
-// Protected routes
 router.use(isAuthenticated);
 
 router.get("/", getUsersList);
