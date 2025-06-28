@@ -50,6 +50,7 @@ export const getUserDetails = asyncHandler(async (req, res, next) => {
     include: {
       posts: {
         include: { user: true, comments: true, likes: true },
+        orderBy: { createdAt: 'desc' },
       },
       following: {
         include: { follower: true },
