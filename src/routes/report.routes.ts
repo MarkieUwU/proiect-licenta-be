@@ -3,6 +3,7 @@ import { isAuthenticated } from '../middleware/auth.middleware';
 import { reportPost, reportComment } from '../controllers/report.controller';
 
 const router = Router();
+
 router.use(isAuthenticated);
 
 router.post('/post/:postId', reportPost);

@@ -5,18 +5,6 @@ import { NotificationService } from '../services/notification.service';
 import { ContentStatus } from '../models/enums/content-status.enum';
 import { Role } from '../models/enums/role.enum';
 
-export const getAllPosts = asyncHandler(async (req, res, next) => {
-  const posts = await prisma.post.findMany({
-    include: {
-      user: true,
-      likes: true,
-      comments: true,
-    },
-  });
-
-  res.json(posts);
-});
-
 export const getFilteredPosts = asyncHandler(async (req, res, next) => {
   const { sortCriterias, userId } = req.body;
   const request = {
@@ -34,7 +22,13 @@ export const getFilteredPosts = asyncHandler(async (req, res, next) => {
     },
   };
 
-  const posts = await prisma.post.findMany(request);
+  // Only show posts that are not archived
+  const posts = await prisma.post.findMany({
+    ...request,
+    where: {
+      status: { not: ContentStatus.ARCHIVED }
+    }
+  });
 
   const finalResult = posts.filter((post) => {
     if (post.user.id === userId) return true;
@@ -127,21 +121,4 @@ export const deletePost = asyncHandler(async (req, res, next) => {
   }
 
   res.json(deletedPost);
-});
-  
-export const getTopPostsByLikes = asyncHandler(async (req, res, next) => {
-  const posts = await prisma.post.findMany({
-    take: 5,
-    include: {
-      likes: true,
-      user: true,
-    },
-    orderBy: {
-      likes: {
-        _count: 'desc',
-      },
-    },
-  });
-
-  res.json(posts);
 });

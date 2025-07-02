@@ -3,9 +3,7 @@ import { isAuthenticated } from "../middleware/auth.middleware";
 import {
   registerUser,
   getUserDetails,
-  getUsersList,
   editProfile,
-  getUserPosts,
   loginUser,
   getConnections,
   removeConnection,
@@ -15,11 +13,8 @@ import {
   getSuggestions,
   getConnectionRequests,
   getAllConnections,
-  getTopUsersByConnections,
-  getTopUsersByPosts,
   getSettings,
   updateSettings,
-  getGenderRatio,
   sendPasswordResetEmail,
   resetPassword,
   verifyResetToken,
@@ -35,8 +30,6 @@ router.put('/password/reset/:userId', resetPassword);
 
 router.use(isAuthenticated);
 
-router.get("/", getUsersList);
-router.get('/posts/:id', getUserPosts);
 router.post("/details", getUserDetails);
 router.put("/:id", editProfile);
 router.get("/connections/all", getAllConnections);
@@ -49,8 +42,5 @@ router.put("/connection/:userId/accept/:connectionId", acceptConnection);
 router.delete("/connection/:userId/disconnect/:connectionId", removeConnection);
 router.get('/settings/:userId', getSettings);
 router.put('/settings/:userId', updateSettings);
-router.get('/top/connections', getTopUsersByConnections);
-router.get('/top/posts', getTopUsersByPosts);
-router.get('/gender/ratio', getGenderRatio);
 
 export default router;

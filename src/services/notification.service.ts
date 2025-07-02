@@ -109,6 +109,56 @@ export class NotificationService {
     });
   }
 
+  // Comment Status Change Notifications
+  static async notifyCommentStatusChange(commentId: number, newStatus: ContentStatus, reason?: string) {
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { 
+        user: true,
+        post: {
+          select: {
+            id: true,
+            title: true
+          }
+        }
+      },
+    });
+
+    if (!comment) return;
+
+    let message = "";
+    let notificationType: NotificationType;
+    
+    switch (newStatus) {
+      case ContentStatus.ARCHIVED:
+        message = `Your comment on "${comment.post.title}" has been archived. Reason: ${reason}`;
+        notificationType = NotificationType.COMMENT_ARCHIVED;
+        break;
+      case ContentStatus.ACTIVE:
+        message = `Your comment on "${comment.post.title}" has been approved and is now visible`;
+        notificationType = NotificationType.COMMENT_APPROVED;
+        break;
+      case ContentStatus.REPORTED:
+        message = `Your comment on "${comment.post.title}" has been reported and is under review`;
+        notificationType = NotificationType.COMMENT_REPORTED;
+        break;
+      default:
+        return; // Don't send notification for unknown status
+    }
+
+    await this.createNotification({
+      userId: comment.userId,
+      type: notificationType,
+      message,
+      data: { 
+        commentId,
+        postId: comment.postId,
+        postTitle: comment.post.title,
+        reason 
+      },
+    });
+  }
+
   // Engagement Notifications
   static async notifyPostLiked(postId: number, likerId: number) {
     const post = await prisma.post.findUnique({

@@ -53,12 +53,10 @@ export const getPostComments = asyncHandler(async (req, res, next) => {
     orderBy: {
       createdAt: 'desc'
     },
-    where: { postId },
+    where: {
+      postId,
+      status: { not: "ARCHIVED" }
+    },
   });
   res.json(comments);
 });
-
-export const getAllComments = asyncHandler(async (req, res, next) => {
-  const comments = await prisma.comment.findMany();
-  res.json(comments);
-})

@@ -12,7 +12,6 @@ import type {
 import { ConnectionStateEnum } from '../models/enums/connection-state.enum';
 import { PrivacyOptions } from '../models/enums/privacy-optinos.enum';
 import { Theme } from '../models/enums/theme.enum';
-import { Gender } from '../models/enums/gender.enum';
 import type { Suggestion } from '../models/suggestion.model';
 import nodemailer from 'nodemailer';
 import type { Role } from '../models/enums/role.enum';
@@ -27,16 +26,6 @@ const gmailTransporter = nodemailer.createTransport({
     user: 'sabiadeaur@gmail.com',
     pass: mailPasscode,
   },
-});
-
-export const getUsersList = asyncHandler(async (req, res, next) => {
-  const { nr } = req.query;
-
-  const users = await prisma.user.findMany({
-    ...(nr?.length && { take: Number(nr) }),
-  });
-
-  res.json(users);
 });
 
 export const getUserDetails = asyncHandler(async (req, res, next) => {
@@ -354,17 +343,6 @@ export const editProfile = asyncHandler(async (req, res, next) => {
   });
 
   res.json(user);
-});
-
-export const getUserPosts = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
-  const posts = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      posts: true,
-    },
-  });
-  res.json(posts);
 });
 
 export const getConnections = asyncHandler(async (req, res, next) => {
@@ -691,79 +669,6 @@ export const removeConnection = asyncHandler(async (req, res, next) => {
 export const getAllConnections = asyncHandler(async (req, res, next) => {
   const connections = await prisma.connection.findMany();
   res.json(connections);
-});
-
-export const getTopUsersByPosts = asyncHandler(async (req, res, next) => {
-  const users = await prisma.user.findMany({
-    take: 5,
-    include: {
-      posts: true,
-    },
-    orderBy: {
-      posts: {
-        _count: 'desc',
-      },
-    },
-  });
-
-  res.json(users);
-});
-
-export const getTopUsersByConnections = asyncHandler(async (req, res, next) => {
-  const connections = await prisma.connection.findMany({
-    include: {
-      follower: true,
-      following: true,
-    },
-  });
-
-  const connectionsByUser = new Map();
-
-  connections.forEach((connection) => {
-    let userName = connection.follower.fullName;
-    if (connectionsByUser.has(userName)) {
-      connectionsByUser.set(userName, connectionsByUser.get(userName) + 1);
-    } else {
-      connectionsByUser.set(userName, 1);
-    }
-
-    userName = connection.following.fullName;
-    if (connectionsByUser.has(userName)) {
-      connectionsByUser.set(userName, connectionsByUser.get(userName) + 1);
-    } else {
-      connectionsByUser.set(userName, 1);
-    }
-  });
-
-  let topUsersByConnections: {
-    user: string;
-    connections: number;
-  }[] = [];
-
-  connectionsByUser.forEach((value, key) => {
-    topUsersByConnections.push({
-      user: key,
-      connections: value,
-    });
-  });
-
-  topUsersByConnections.sort(
-    (first, second) => second.connections - first.connections
-  );
-
-  res.json(topUsersByConnections.slice(0, 5));
-});
-
-export const getGenderRatio = asyncHandler(async (req, res, next) => {
-  const users = await prisma.user.findMany();
-
-  const males = users.filter((user) => user.gender === Gender.male).length;
-  const females = users.filter((user) => user.gender === Gender.female).length;
-
-  const maleRatio = (males * 100) / users.length;
-  const femaleRatio = (females * 100) / users.length;
-
-  res.json([maleRatio, femaleRatio]);
 });
 
 export const updateSettings = asyncHandler(async (req, res, next) => {
