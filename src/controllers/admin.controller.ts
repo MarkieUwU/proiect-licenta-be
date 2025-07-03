@@ -50,7 +50,6 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     })
   ]);
 
-  // User and post growth by month for last 5 months
   const now = new Date();
   const userGrowth = [];
   const postGrowth = [];
@@ -76,16 +75,15 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       })
     ]);
     userGrowth.push({
-      name: format(monthStart, 'MMM'),
+      name: format(monthStart, 'MMM').toUpperCase(),
       users: userCount
     });
     postGrowth.push({
-      name: format(monthStart, 'MMM'),
+      name: format(monthStart, 'MMM').toUpperCase(),
       posts: postCount
     });
   }
 
-  // Rolling 3-month average popularity growth rate (users + posts)
   let avgPopularityGrowthRate = null;
   if (userGrowth.length >= 4 && postGrowth.length >= 4) {
     let rates = [];
@@ -304,7 +302,6 @@ export const getAllPostReports = asyncHandler(async (req, res) => {
   let where: any = { commentId: null };
   if (postId) where.postId = Number(postId);
 
-  // Only use authorId for DB filtering, do not filter by postTitle/authorUsername in DB (for case-insensitive workaround)
   if (authorId) {
     where.AND = [{ post: { user: { id: Number(authorId) } } }];
   }
@@ -343,7 +340,6 @@ export const getAllPostReports = asyncHandler(async (req, res) => {
           }
         }
       },
-      // fetch more than needed for in-memory filtering
       skip: 0,
       take: 1000,
       orderBy
@@ -357,11 +353,9 @@ export const getAllPostReports = asyncHandler(async (req, res) => {
     authorUsername: report.post.user.username
   }));
 
-  // Ensure query params are strings for in-memory filtering
   const postTitleStr = typeof postTitle === 'string' ? postTitle : Array.isArray(postTitle) ? String(postTitle[0]) : '';
   const authorUsernameStr = typeof authorUsername === 'string' ? authorUsername : Array.isArray(authorUsername) ? String(authorUsername[0]) : '';
 
-  // In-memory case-insensitive filtering
   if (postTitleStr) {
     processedReports = processedReports.filter(r => String(r.postTitle || '').toLowerCase().includes(postTitleStr.toLowerCase()));
   }
@@ -369,7 +363,6 @@ export const getAllPostReports = asyncHandler(async (req, res) => {
     processedReports = processedReports.filter(r => String(r.authorUsername || '').toLowerCase().includes(authorUsernameStr.toLowerCase()));
   }
 
-  // In-memory sort for nested fields
   if (sort === "postTitle") {
     processedReports.sort((a, b) => {
       const aValue = a.postTitle?.toLowerCase() || '';
