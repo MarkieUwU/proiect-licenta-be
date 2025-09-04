@@ -1,7 +1,7 @@
 import asyncHandler from "express-async-handler";
 import { prisma } from "../server";
 
-export const getNotifications = asyncHandler(async (req, res) => {
+export const getAllNotifications = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { page = 1, limit = 20 } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
@@ -23,6 +23,24 @@ export const getNotifications = asyncHandler(async (req, res) => {
     pages: Math.ceil(total / Number(limit)),
     total,
   });
+});
+
+export const getUnreadNotifications = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const unreadNotifications = await prisma.notification.findMany({
+    where: { userId, read: false },
+    orderBy: { createdAt: "desc" },
+    take: 100
+  });
+  res.json(unreadNotifications);
+});
+
+export const getNotificationsCount = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const count = await prisma.notification.count({
+    where: { userId, read: false },
+  });
+  res.json({ count });
 });
 
 export const markAsRead = asyncHandler(async (req, res) => {
