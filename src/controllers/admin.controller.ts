@@ -145,7 +145,7 @@ export const getUsers = asyncHandler(async (req, res) => {
         createdAt: true,
         _count: {
           select: {
-            posts: true,
+            posts: { where: { status: { not: 'ARCHIVED' } } },
             follower: true,
             following: true
           }
@@ -214,7 +214,7 @@ export const getAdminPosts = asyncHandler(async (req, res) => {
         _count: {
           select: {
             likes: true,
-            comments: true
+            comments: { where: { status: { not: 'ARCHIVED' } } }
           }
         },
         reports: {
@@ -463,13 +463,16 @@ export const updateCommentStatus = asyncHandler(async (req, res) => {
 });
 
 export const getAllCommentReports = asyncHandler(async (req, res) => {
-  const { commentId, commentContent, authorId, authorUsername, page = 1, limit = 20, sort = "createdAt", order = "desc" } = req.query;
+  const { commentId, commentContent, authorId, authorUsername, postId, page = 1, limit = 20, sort = "createdAt", order = "desc" } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
   let where: any = { commentId: { not: null } };
   if (commentId) where.commentId = Number(commentId);
   if (authorId) {
     where.AND = [{ comment: { user: { id: Number(authorId) } } }];
+  }
+  if (postId) {
+    where.AND = [...where.AND, { comment: { post: { id: Number(postId) } } }];
   }
 
   let orderBy: any;

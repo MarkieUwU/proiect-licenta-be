@@ -38,7 +38,14 @@ export const getUserDetails = asyncHandler(async (req, res, next) => {
     },
     include: {
       posts: {
-        include: { user: true, comments: true, likes: true },
+        where: { status: { not: 'ARCHIVED' } },
+        include: { 
+          user: true, 
+          comments: {
+            where: { status: { not: 'ARCHIVED' } }
+          }, 
+          likes: true 
+        },
         orderBy: { createdAt: 'desc' },
       },
       following: {
@@ -394,7 +401,7 @@ export const getConnections = asyncHandler(async (req, res, next) => {
             select: {
               follower: { where: { pending: false } },
               following: { where: { pending: false } },
-              posts: true,
+              posts: { where: { status: { not: 'ARCHIVED' } } },
             },
           },
         },
@@ -461,7 +468,9 @@ export const getConnectionRequests = asyncHandler(async (req, res, next) => {
           gender: true,
           bio: true,
           createdAt: true, // ISO 8601 date string
-          posts: true,
+          posts: {
+            where: { status: { not: 'ARCHIVED' } }
+          },
           following: true,
           follower: true,
         },
@@ -501,7 +510,9 @@ export const getSuggestions = asyncHandler(async (req, res, next) => {
       gender: true,
       bio: true,
       createdAt: true, // ISO 8601 date string
-      posts: true,
+      posts: {
+        where: { status: { not: 'ARCHIVED' } }
+      },
       following: {
         select: {
           follower: true,

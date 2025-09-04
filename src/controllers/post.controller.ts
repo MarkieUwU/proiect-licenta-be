@@ -18,7 +18,9 @@ export const getFilteredPosts = asyncHandler(async (req, res, next) => {
         },
       },
       likes: true,
-      comments: true,
+      comments: {
+        where: { status: { not: 'ARCHIVED' } }
+      },
     },
   };
 
