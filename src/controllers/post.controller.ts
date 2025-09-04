@@ -4,6 +4,7 @@ import { PrivacyOptions } from '../models/enums/privacy-optinos.enum';
 import { NotificationService } from '../services/notification.service';
 import { ContentStatus } from '../models/enums/content-status.enum';
 import { Role } from '../models/enums/role.enum';
+import { ApiError } from '../error/LocalizedApiError';
 
 export const getFilteredPosts = asyncHandler(async (req, res, next) => {
   const { sortCriterias, userId } = req.body;
@@ -83,14 +84,12 @@ export const deletePost = asyncHandler(async (req, res, next) => {
   });
 
   if (!post) {
-    res.status(404);
-    throw new Error("Post not found");
+    throw ApiError.postNotFound();
   }
 
   // Check if user is authorized to delete
   if (!isAdmin && post.userId !== userId) {
-    res.status(403);
-    throw new Error("Not authorized to delete this post");
+    throw ApiError.forbidden();
   }
 
   // Delete related records

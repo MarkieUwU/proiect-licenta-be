@@ -1,4 +1,5 @@
-import { ApiError } from "../error/ApiError";
+import { ApiError } from "../error/LocalizedApiError";
+import { ApiResponse } from "../utils/ApiResponse";
 import { prisma } from "../server";
 import asyncHandler from "express-async-handler";
 import { NotificationService } from "../services/notification.service";
@@ -25,7 +26,7 @@ export const addCommentToPost = asyncHandler(async (req, res, next) => {
 
     res.json(comment);
   } else {
-    next(ApiError.notFound('User not found'));
+    next(ApiError.userNotFound());
   }
 });
 

@@ -2,7 +2,9 @@ import asyncHandler from 'express-async-handler';
 import { prisma } from '../server';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import { ApiError } from '../error/ApiError';
+import { ApiError } from '../error/LocalizedApiError';
+import { ApiResponse } from '../utils/ApiResponse';
+import { t } from '../i18n/utils';
 import type { ConnectionRequest } from '../models/connection.model';
 import type {
   ConnectionUser,
@@ -52,7 +54,7 @@ export const getUserDetails = asyncHandler(async (req, res, next) => {
   });
 
   if (!user) {
-    next(ApiError.notFound('User not found'));
+    next(ApiError.userNotFound());
     return;
   }
 
@@ -121,19 +123,19 @@ export const registerUser = asyncHandler(async (req, res, next) => {
   ]);
 
   if (verifyEmail?.email && verifyUsername?.username) {
-    return next(ApiError.badRequest('Both username and email already exist!'));
+    return next(ApiError.bothUsernameEmailExist());
   }
 
   if (verifyEmail?.email) {
-    return next(ApiError.badRequest('Email already exists!'));
+    return next(ApiError.emailAlreadyExists());
   }
 
   if (verifyUsername?.username) {
-    return next(ApiError.badRequest('Username already exists!'));
+    return next(ApiError.usernameAlreadyExists());
   }
 
   if (password !== confirmPassword) {
-    return next(ApiError.badRequest("Passwords don't match"));
+    return next(ApiError.passwordsDontMatch());
   }
 
   const salt = bcrypt.genSaltSync(10);
@@ -174,13 +176,13 @@ export const registerUser = asyncHandler(async (req, res, next) => {
   const jwtSecret = process.env.JWT_SECRET;
 
   if (!jwtSecret) {
-    return next(ApiError.internal('JWT secret is not set'));
+    return next(ApiError.jwtSecretNotSet());
   }
 
   jwt.sign(userProfile, jwtSecret, { expiresIn: '2d' }, (err, token) => {
     if (err) return next(err);
 
-    res.json({ token, userProfile });
+    ApiResponse.userCreated(req, res, { token, userProfile });
   });
 });
 
@@ -193,13 +195,13 @@ export const loginUser = asyncHandler(async (req, res, next) => {
   });
 
   if (!user) {
-    return next(ApiError.unauthorized('Username or password is incorrect'));
+    return next(ApiError.usernameOrPasswordIncorrect());
   }
 
   const passwordMatch = bcrypt.compareSync(password, user.passwordHash);
 
   if (!passwordMatch) {
-    return next(ApiError.unauthorized('Username or password is incorrect'));
+    return next(ApiError.usernameOrPasswordIncorrect());
   }
 
   await prisma.settings.upsert({
@@ -233,7 +235,7 @@ export const loginUser = asyncHandler(async (req, res, next) => {
   const jwtSecret = process.env.JWT_SECRET;
 
   if (!jwtSecret) {
-    return next(ApiError.internal('JWT secret is not set'));
+    return next(ApiError.jwtSecretNotSet());
   }
 
   jwt.sign(userProfile, jwtSecret, { expiresIn: '2d' }, (err, token) => {
@@ -241,7 +243,7 @@ export const loginUser = asyncHandler(async (req, res, next) => {
       return next(err);
     }
 
-    res.json({ token, userProfile });
+    ApiResponse.loginSuccessful(req, res, { token, userProfile });
   });
 });
 
@@ -250,16 +252,23 @@ export const sendPasswordResetEmail = asyncHandler(async (req, res, next) => {
   const resetJwtSecret = process.env.RESET_JWT_SECRET;
 
   if (!resetJwtSecret) {
-    return next(ApiError.internal('Reset JWT secret is not set'));
+    return next(ApiError.resetJwtSecretNotSet());
   }
 
   const user = await prisma.user.findUnique({
     where: { email },
+    include: {
+      settings: {
+        select: { language: true }
+      }
+    }
   });
 
   if (!user) {
-    return next(ApiError.notFound('User not found'));
+    return next(ApiError.userNotFound());
   }
+
+  const userLanguage = user.settings?.language || 'en';
 
   const token = jwt.sign({ userId: user.id }, resetJwtSecret, {
     expiresIn: '1h',
@@ -269,20 +278,21 @@ export const sendPasswordResetEmail = asyncHandler(async (req, res, next) => {
   await gmailTransporter.sendMail({
     from: 'SocialMediaApp <no-reply@socialmediapp.com',
     to: email,
-    subject: 'Password Reset Request',
+    subject: t('emails.passwordReset.subject', { lng: userLanguage }),
     html: `
-      <p>You requested a password reset. Click the button to reset your password:</p>
+      <p>${t('emails.passwordReset.greeting', { lng: userLanguage, name: user.fullName })}</p>
+      <p>${t('emails.passwordReset.body', { lng: userLanguage })}</p>
       <p>
         <a 
           style="background-color: #5696b9; border-radius: 20px; text-decoration: none; color: white; padding: 0.5rem 1rem;" 
           href="${resetLink}">
-            Reset password
+            ${t('emails.passwordReset.button', { lng: userLanguage })}
         </a>
       </p>
-      <p style="margin-top: 1rem">If you did not request this, please ignore this email.</p>`,
+      <p style="margin-top: 1rem">${t('emails.passwordReset.footer', { lng: userLanguage })}</p>`,
   });
 
-  res.json(null);
+  ApiResponse.passwordResetEmailSent(req, res);
 });
 
 export const verifyResetToken = asyncHandler(async (req, res, next) => {
@@ -290,18 +300,18 @@ export const verifyResetToken = asyncHandler(async (req, res, next) => {
   const resetJwtSecret = process.env.RESET_JWT_SECRET;
 
   if (!resetJwtSecret) {
-    return next(ApiError.internal('Reset JWT secret is not set'));
+    return next(ApiError.resetJwtSecretNotSet());
   }
 
   jwt.verify(token, resetJwtSecret, (err, decoded) => {
     if (err?.name === 'TokenExpiredError') {
       console.log('here');
-      return next(ApiError.unauthorized('Password reset link has expired.'));
+      return next(ApiError.passwordResetLinkExpired());
     }
 
     if (err) {
       console.log('or here');
-      return next(ApiError.unauthorized('Password reset link is invalid.'));
+      return next(ApiError.passwordResetLinkInvalid());
     }
 
     res.json(decoded);
@@ -313,7 +323,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
   const { password, confirmPassword } = req.body;
 
   if (password !== confirmPassword) {
-    return next(ApiError.badRequest("Passwords don't match"));
+    return next(ApiError.passwordsDontMatch());
   }
 
   const salt = bcrypt.genSaltSync(10);
@@ -324,7 +334,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     data: { passwordHash },
   });
 
-  res.json(user);
+  ApiResponse.passwordResetSuccessful(req, res);
 });
 
 export const editProfile = asyncHandler(async (req, res, next) => {
@@ -413,7 +423,7 @@ export const getConnections = asyncHandler(async (req, res, next) => {
             select: {
               follower: { where: { pending: false } },
               following: { where: { pending: false } },
-              posts: true,
+              posts: { where: { status: { not: 'ARCHIVED' } } },
             },
           },
         },
@@ -691,7 +701,7 @@ export const updateSettings = asyncHandler(async (req, res, next) => {
     },
   });
 
-  res.json(settings);
+  ApiResponse.settingsUpdated(req, res, settings);
 });
 
 export const getSettings = asyncHandler(async (req, res, next) => {

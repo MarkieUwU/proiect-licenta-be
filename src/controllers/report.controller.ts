@@ -1,6 +1,7 @@
 import { prisma } from '../server';
 import asyncHandler from 'express-async-handler';
 import { NotificationService } from '../services/notification.service';
+import { ApiError } from '../error/LocalizedApiError';
 
 export const reportPost = asyncHandler(async (req, res) => {
   const { postId } = req.params;
@@ -28,7 +29,7 @@ export const reportComment = asyncHandler(async (req, res, next) => {
     select: { postId: true }
   });
   if (!comment) {
-    return next(new Error('Comment not found'));
+    return next(ApiError.commentNotFound());
   }
 
   const report = await prisma.report.create({

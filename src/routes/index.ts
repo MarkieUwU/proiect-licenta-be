@@ -6,6 +6,7 @@ import commentRouter from "./comment.routes";
 import adminRouter from "./admin.routes";
 import reportRouter from './report.routes';
 import notificationRouter from './notification.routes';
+import testRouter from './test.routes';
 
 const routes = Router();
 
@@ -16,5 +17,6 @@ routes.use("/like", likeRouter);
 routes.use("/comment", commentRouter);
 routes.use('/report', reportRouter);
 routes.use('/notifications', notificationRouter);
+routes.use('/test', testRouter);
 
 export default routes;

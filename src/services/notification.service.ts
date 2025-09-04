@@ -1,6 +1,7 @@
 import { prisma } from "../server";
 import { NotificationType } from "../models/enums/notification-type.enum";
 import { ContentStatus } from "../models/enums/content-status.enum";
+import { t } from "../i18n/utils";
 
 export class NotificationService {
   static async createNotification({
@@ -24,6 +25,19 @@ export class NotificationService {
     });
   }
 
+  // Helper method to get user's preferred language
+  static async getUserLanguage(userId: number): Promise<string> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        settings: {
+          select: { language: true }
+        }
+      },
+    });
+    return user?.settings?.language || 'en';
+  }
+
   // Post Report Notifications
   static async notifyPostReported(postId: number, reportId: number) {
     const post = await prisma.post.findUnique({
@@ -33,11 +47,14 @@ export class NotificationService {
 
     if (!post) return;
 
+    // Get user's language preference
+    const userLanguage = await this.getUserLanguage(post.userId);
+
     // Notify post owner
     await this.createNotification({
       userId: post.userId,
       type: NotificationType.POST_REPORTED,
-      message: "Your post has been reported and is under review",
+      message: t("notifications.postReported", { lng: userLanguage }),
       data: { 
         postId,
         reportId,
@@ -51,11 +68,12 @@ export class NotificationService {
     });
 
     await Promise.all(
-      admins.map((admin) =>
-        this.createNotification({
+      admins.map(async (admin) => {
+        const adminLanguage = await this.getUserLanguage(admin.id);
+        return this.createNotification({
           userId: admin.id,
           type: NotificationType.POST_REPORTED,
-          message: `New post report: "${post.title}"`,
+          message: t("notifications.postReported", { lng: adminLanguage }),
           data: { 
             postId,
             reportId,
@@ -63,8 +81,8 @@ export class NotificationService {
             authorId: post.userId,
             authorName: post.user.fullName
           },
-        })
-      )
+        });
+      })
     );
   }
 
@@ -77,20 +95,28 @@ export class NotificationService {
 
     if (!post) return;
 
+    const userLanguage = await this.getUserLanguage(post.userId);
     let message = "";
     let notificationType: NotificationType;
     
     switch (newStatus) {
       case ContentStatus.ARCHIVED:
-        message = `Your post "${post.title}" has been archived. Reason: ${reason}`;
+        message = t("notifications.postArchived", { 
+          lng: userLanguage,
+          title: post.title,
+          reason: reason || ""
+        });
         notificationType = NotificationType.POST_ARCHIVED;
         break;
       case ContentStatus.ACTIVE:
-        message = `Your post "${post.title}" has been approved and is now visible`;
+        message = t("notifications.postApproved", { 
+          lng: userLanguage,
+          title: post.title
+        });
         notificationType = NotificationType.POST_APPROVED;
         break;
       case ContentStatus.REPORTED:
-        message = `Your post "${post.title}" has been reported and is under review`;
+        message = t("notifications.postReported", { lng: userLanguage });
         notificationType = NotificationType.POST_REPORTED;
         break;
       default:
@@ -126,20 +152,28 @@ export class NotificationService {
 
     if (!comment) return;
 
+    const userLanguage = await this.getUserLanguage(comment.userId);
     let message = "";
     let notificationType: NotificationType;
     
     switch (newStatus) {
       case ContentStatus.ARCHIVED:
-        message = `Your comment on "${comment.post.title}" has been archived. Reason: ${reason}`;
+        message = t("notifications.commentArchived", { 
+          lng: userLanguage,
+          title: comment.post.title,
+          reason: reason || ""
+        });
         notificationType = NotificationType.COMMENT_ARCHIVED;
         break;
       case ContentStatus.ACTIVE:
-        message = `Your comment on "${comment.post.title}" has been approved and is now visible`;
+        message = t("notifications.commentApproved", { 
+          lng: userLanguage,
+          title: comment.post.title
+        });
         notificationType = NotificationType.COMMENT_APPROVED;
         break;
       case ContentStatus.REPORTED:
-        message = `Your comment on "${comment.post.title}" has been reported and is under review`;
+        message = t("notifications.commentReported", { lng: userLanguage });
         notificationType = NotificationType.COMMENT_REPORTED;
         break;
       default:
@@ -152,7 +186,7 @@ export class NotificationService {
       message,
       data: { 
         commentId,
-        postId: comment.postId,
+        postId: comment.post.id,
         postTitle: comment.post.title,
         reason 
       },
@@ -172,10 +206,15 @@ export class NotificationService {
       where: { id: likerId },
     });
 
+    const userLanguage = await this.getUserLanguage(post.userId);
+
     await this.createNotification({
       userId: post.userId,
       type: NotificationType.POST_LIKED,
-      message: `${liker?.fullName} liked your post "${post.title}"`,
+      message: t("notifications.postLiked", { 
+        lng: userLanguage,
+        username: liker?.fullName
+      }),
       data: { 
         postId,
         postTitle: post.title,
@@ -199,10 +238,15 @@ export class NotificationService {
 
     // Notify post owner
     if (post.userId !== commenterId) {
+      const userLanguage = await this.getUserLanguage(post.userId);
+      
       await this.createNotification({
         userId: post.userId,
         type: NotificationType.POST_COMMENTED,
-        message: `${commenter?.fullName} commented on your post "${post.title}"`,
+        message: t("notifications.postCommented", { 
+          lng: userLanguage,
+          username: commenter?.fullName
+        }),
         data: { 
           postId,
           postTitle: post.title,
@@ -228,11 +272,16 @@ export class NotificationService {
         });
 
         await Promise.all(
-          mentionedUsers.map((user) =>
-            this.createNotification({
+          mentionedUsers.map(async (user) => {
+            const userLanguage = await this.getUserLanguage(user.id);
+            
+            return this.createNotification({
               userId: user.id,
               type: NotificationType.MENTIONED_IN_COMMENT,
-              message: `${commenter?.fullName} mentioned you in a comment`,
+              message: t("notifications.mentionedInComment", { 
+                lng: userLanguage,
+                username: commenter?.fullName
+              }),
               data: { 
                 postId,
                 postTitle: post.title,
@@ -240,8 +289,8 @@ export class NotificationService {
                 commenterId,
                 commenterName: commenter?.fullName
               },
-            })
-          )
+            });
+          })
         );
       }
     }
@@ -261,23 +310,33 @@ export class NotificationService {
       : await prisma.user.findMany();
 
     await Promise.all(
-      users.map((user) =>
-        this.createNotification({
+      users.map(async (user) => {
+        const userLanguage = await this.getUserLanguage(user.id);
+        
+        return this.createNotification({
           userId: user.id,
           type: NotificationType.SYSTEM_ANNOUNCEMENT,
-          message,
+          message: t("notifications.systemAnnouncement", { 
+            lng: userLanguage,
+            message
+          }),
           data: { announcement: true },
-        })
-      )
+        });
+      })
     );
   }
 
   // Account Warning Notifications
   static async notifyAccountWarning(userId: number, reason: string) {
+    const userLanguage = await this.getUserLanguage(userId);
+    
     await this.createNotification({
       userId,
       type: NotificationType.ACCOUNT_WARNING,
-      message: `Account Warning: ${reason}`,
+      message: t("notifications.accountWarning", { 
+        lng: userLanguage,
+        message: reason
+      }),
       data: { warning: true, reason },
     });
   }

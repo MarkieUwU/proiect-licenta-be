@@ -1,5 +1,7 @@
-import asyncHandler from "express-async-handler";
-import { prisma } from "../server";
+import asyncHandler from 'express-async-handler';
+import { prisma } from '../server';
+import { ApiError } from '../error/LocalizedApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export const getNotifications = asyncHandler(async (req, res) => {
   const userId = req.user.id;
@@ -48,7 +50,7 @@ export const markAllAsRead = asyncHandler(async (req, res) => {
     data: { read: true },
   });
 
-  res.json({ success: true });
+  ApiResponse.operationCompleted(req, res);
 });
 
 export const deleteNotification = asyncHandler(async (req, res, next) => {
@@ -64,14 +66,12 @@ export const deleteNotification = asyncHandler(async (req, res, next) => {
   });
 
   if (!notification) {
-    res.status(404).json({ message: 'Notification not found' });
-    return;
+    return next(ApiError.notificationNotFound());
   }
 
   // Only allow deletion of read notifications
   if (!notification.read) {
-    res.status(400).json({ message: 'Cannot delete unread notifications' });
-    return;
+    return next(ApiError.cannotDeleteUnreadNotifications());
   }
 
   await prisma.notification.delete({
@@ -80,5 +80,5 @@ export const deleteNotification = asyncHandler(async (req, res, next) => {
     },
   });
 
-  res.json({ success: true });
+  ApiResponse.notificationDeleted(req, res);
 }); 

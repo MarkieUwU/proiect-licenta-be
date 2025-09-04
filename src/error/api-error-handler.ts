@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ApiError } from "./ApiError";
+import { ApiResponse } from "../utils/ApiResponse";
 
 export const apiErrorHandler = (
   err: any,
@@ -10,15 +11,13 @@ export const apiErrorHandler = (
   console.error(err); // Log the error for debugging
 
   if (err instanceof ApiError) {
-    res.status(err.code).json({
-      status: err.status,
-      message: err.message,
-    });
+    // Use the ApiResponse utility to handle localized error messages
+    return ApiResponse.error(req, res, err, err.code);
   } else {
     // For unexpected errors
-    res.status(500).json({
-      status: "error",
+    return ApiResponse.error(req, res, { 
       message: "Internal Server Error",
-    });
+      translationKey: "errors.internalServerError"
+    }, 500);
   }
 };

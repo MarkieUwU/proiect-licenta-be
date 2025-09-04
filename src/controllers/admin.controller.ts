@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import { prisma } from '../server';
-import { ApiError } from '../error/ApiError';
+import { ApiError } from '../error/LocalizedApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 import { NotificationService } from '../services/notification.service';
 import { Role } from '../models/enums/role.enum';
 import { ContentStatus } from '../models/enums/content-status.enum';
@@ -167,7 +168,7 @@ export const updateUserRole = asyncHandler(async (req, res, next) => {
   const { role } = req.body;
 
   if (!Object.values(Role).includes(role)) {
-    return next(ApiError.badRequest('Invalid role'));
+    return next(ApiError.invalidRole());
   }
 
   const user = await prisma.user.update({

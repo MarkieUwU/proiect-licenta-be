@@ -1,4 +1,5 @@
-import { ApiError } from "../error/ApiError";
+import { ApiError } from "../error/LocalizedApiError";
+import { ApiResponse } from "../utils/ApiResponse";
 import { prisma } from "../server";
 import asyncHandler from "express-async-handler";
 import { NotificationService } from "../services/notification.service";
@@ -22,7 +23,7 @@ export const deleteLike = asyncHandler(async (req, res, next) => {
     },
   });
 
-  if (!like) return next(ApiError.notFound("Something wrong happened"));
+  if (!like) return next(ApiError.postNotFound());
 
   const deletedLike = await prisma.like.delete({
     where: { id: like.id },
