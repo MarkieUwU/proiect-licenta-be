@@ -39,12 +39,12 @@ export const getUserDetails = asyncHandler(async (req, res, next) => {
     include: {
       posts: {
         where: { status: { not: 'ARCHIVED' } },
-        include: { 
-          user: true, 
+        include: {
+          user: true,
           comments: {
-            where: { status: { not: 'ARCHIVED' } }
-          }, 
-          likes: true 
+            where: { status: { not: 'ARCHIVED' } },
+          },
+          likes: true,
         },
         orderBy: { createdAt: 'desc' },
       },
@@ -313,7 +313,7 @@ export const verifyResetToken = asyncHandler(async (req, res, next) => {
 
     res.json(decoded);
   });
-})
+});
 
 export const resetPassword = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
@@ -360,25 +360,9 @@ export const getConnections = asyncHandler(async (req, res, next) => {
     OR: [
       {
         followerId: id,
-        following: searchString?.length
-          ? {
-              fullName: {
-                contains: searchString,
-                mode: 'insensitive',
-              },
-            }
-          : undefined,
       },
       {
         followingId: id,
-        follower: searchString?.length
-          ? {
-              fullName: {
-                contains: searchString,
-                mode: 'insensitive',
-              },
-            }
-          : undefined,
       },
     ],
     pending: false,
@@ -448,6 +432,12 @@ export const getConnections = asyncHandler(async (req, res, next) => {
     };
   });
 
+  if (searchString) {
+    users = users.filter((user) => {
+      return user.user.fullName.toLowerCase().includes(searchString);
+    });
+  }
+
   res.json(users);
 });
 
@@ -467,9 +457,9 @@ export const getConnectionRequests = asyncHandler(async (req, res, next) => {
           email: true,
           gender: true,
           bio: true,
-          createdAt: true, // ISO 8601 date string
+          createdAt: true,
           posts: {
-            where: { status: { not: 'ARCHIVED' } }
+            where: { status: { not: 'ARCHIVED' } },
           },
           following: true,
           follower: true,
@@ -509,9 +499,9 @@ export const getSuggestions = asyncHandler(async (req, res, next) => {
       email: true,
       gender: true,
       bio: true,
-      createdAt: true, // ISO 8601 date string
+      createdAt: true,
       posts: {
-        where: { status: { not: 'ARCHIVED' } }
+        where: { status: { not: 'ARCHIVED' } },
       },
       following: {
         select: {
@@ -691,7 +681,13 @@ export const updateSettings = asyncHandler(async (req, res, next) => {
     where: {
       userId,
     },
-    update: { language, theme, detailsPrivacy, connectionsPrivacy, postsPrivacy },
+    update: {
+      language,
+      theme,
+      detailsPrivacy,
+      connectionsPrivacy,
+      postsPrivacy,
+    },
     create: {
       language: language || 'en',
       theme: theme || Theme.dark,

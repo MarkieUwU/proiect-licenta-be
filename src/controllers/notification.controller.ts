@@ -30,7 +30,7 @@ export const getUnreadNotifications = asyncHandler(async (req, res) => {
   const unreadNotifications = await prisma.notification.findMany({
     where: { userId, read: false },
     orderBy: { createdAt: "desc" },
-    take: 100
+    take: 999
   });
   res.json(unreadNotifications);
 });
@@ -40,7 +40,7 @@ export const getNotificationsCount = asyncHandler(async (req, res) => {
   const count = await prisma.notification.count({
     where: { userId, read: false },
   });
-  res.json({ count });
+  res.json(count);
 });
 
 export const markAsRead = asyncHandler(async (req, res) => {
