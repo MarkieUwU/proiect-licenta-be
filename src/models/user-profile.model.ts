@@ -4,7 +4,7 @@ import type { LanguageCodes } from "./enums/language-code.enum";
 import type { Role } from "./enums/role.enum";
 
 export type UserProfile = {
-  id: number;
+  id: string;
   profileImage: string;
   username: string;
   fullName: string;
@@ -16,14 +16,14 @@ export type UserProfile = {
 };
 
 export type ConnectionUser = {
-  id: number;
+  id: string;
   profileImage: string;
   username: string;
   fullName: string;
 };
 
 export type LoggedUser = {
-  id: number;
+  id: string;
   fullName: string;
   username: string;
   email: string;

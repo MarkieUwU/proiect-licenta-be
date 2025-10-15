@@ -21,7 +21,7 @@ async function seed() {
     // Create Users
     const users = [];
     const userPasswords = []; // Store passwords for summary
-    const numUsers = 20;
+    const numUsers = 100;
     console.log('Passwords');
     
     // Create an admin user first
@@ -189,7 +189,7 @@ async function seed() {
       // Ensure no duplicate likes for the same user and post
       const existingLike = await prisma.like.findFirst({
         where: {
-          AND: [{ userId: Number(userId) }, { postId: Number(postId) }],
+          AND: [{ userId }, { postId }],
         },
       });
 
@@ -235,24 +235,20 @@ async function seed() {
       // Ensure follower and following are different
       if (follower.id !== following.id) {
         // Avoid duplicate connections
-        let existingConnection = await prisma.connection.findUnique({
+        let existingConnection = await prisma.connection.findFirst({
           where: {
-            followingId_followerId: {
-              followingId: following.id,
-              followerId: follower.id,
-            },
+            followingId: following.id,
+            followerId: follower.id,
           },
         });
 
         if (existingConnection) continue;
 
-        existingConnection = await prisma.connection.findUnique({
+        existingConnection = await prisma.connection.findFirst({
           where: {
-            followingId_followerId: {
-              followingId: follower.id,
-              followerId: following.id
-            }
-          }
+            followingId: follower.id,
+            followerId: following.id,
+          },
         });
 
         if (!existingConnection) {
@@ -562,12 +558,10 @@ async function seed() {
       for (let i = 0; i < 8 && i < regularUsers.length; i++) {
         const regularUser = regularUsers[i];
         // Check if this user already has a connection to admin
-        const existingRequest = await prisma.connection.findUnique({
+        const existingRequest = await prisma.connection.findFirst({
           where: {
-            followingId_followerId: {
-              followerId: regularUser.id,
-              followingId: adminUserForNotifications.id,
-            },
+            followerId: regularUser.id,
+            followingId: adminUserForNotifications.id,
           },
         });
         if (!existingRequest) {
@@ -585,12 +579,10 @@ async function seed() {
       for (let i = 0; i < Math.min(15, regularUsers.length); i++) {
         const regularUser = regularUsers[i];
         // Check if admin already follows this user
-        const existingAdminFollowing = await prisma.connection.findUnique({
+        const existingAdminFollowing = await prisma.connection.findFirst({
           where: {
-            followingId_followerId: {
-              followerId: adminUserForNotifications.id,
-              followingId: regularUser.id,
-            },
+            followerId: adminUserForNotifications.id,
+            followingId: regularUser.id,
           },
         });
         // Admin follows regular user (if not already following)
@@ -604,12 +596,10 @@ async function seed() {
           });
         }
         // Check if regular user already follows admin
-        const existingUserFollowingAdmin = await prisma.connection.findUnique({
+        const existingUserFollowingAdmin = await prisma.connection.findFirst({
           where: {
-            followingId_followerId: {
-              followerId: regularUser.id,
-              followingId: adminUserForNotifications.id,
-            },
+            followerId: regularUser.id,
+            followingId: adminUserForNotifications.id,
           },
         });
         // Regular user follows admin (for some users, if not already following)

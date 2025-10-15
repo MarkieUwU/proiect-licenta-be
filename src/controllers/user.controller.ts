@@ -13,6 +13,7 @@ import { ConnectionStateEnum } from '../models/enums/connection-state.enum';
 import { PrivacyOptions } from '../models/enums/privacy-optinos.enum';
 import { Theme } from '../models/enums/theme.enum';
 import type { Suggestion } from '../models/suggestion.model';
+import type { Connection } from '@prisma/client';
 import nodemailer from 'nodemailer';
 import type { Role } from '../models/enums/role.enum';
 
@@ -327,7 +328,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
   const passwordHash = bcrypt.hashSync(password, salt);
 
   const user = await prisma.user.update({
-    where: { id: +userId },
+    where: { id: userId },
     data: { passwordHash },
   });
 
@@ -338,7 +339,7 @@ export const editProfile = asyncHandler(async (req, res, next) => {
   const { profileImage, fullName, email, bio, gender } = req.body;
   const user = await prisma.user.update({
     where: {
-      id: parseInt(req.params.id),
+      id: req.params.id,
     },
     data: {
       profileImage,
@@ -353,16 +354,32 @@ export const editProfile = asyncHandler(async (req, res, next) => {
 });
 
 export const getConnections = asyncHandler(async (req, res, next) => {
-  const id = parseInt(req.params.id);
+  const id = req.params.id;
   const searchString = req.body.searchString?.toLowerCase();
 
   const whereClause: any = {
     OR: [
       {
         followerId: id,
+        following: searchString?.length
+          ? {
+              fullName: {
+                contains: searchString,
+                mode: 'insensitive',
+              },
+            }
+          : undefined,
       },
       {
         followingId: id,
+        follower: searchString?.length
+          ? {
+              fullName: {
+                contains: searchString,
+                mode: 'insensitive',
+              },
+            }
+          : undefined,
       },
     ],
     pending: false,
@@ -442,7 +459,7 @@ export const getConnections = asyncHandler(async (req, res, next) => {
 });
 
 export const getConnectionRequests = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   const connections = await prisma.connection.findMany({
     where: {
       followingId: id,
@@ -487,7 +504,7 @@ export const getConnectionRequests = asyncHandler(async (req, res, next) => {
 });
 
 export const getSuggestions = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   const searchString = req.body.searchString?.toLowerCase();
 
   const users = await prisma.user.findMany({
@@ -505,6 +522,7 @@ export const getSuggestions = asyncHandler(async (req, res, next) => {
       },
       following: {
         select: {
+          id: true,
           follower: true,
           followerId: true,
           following: true,
@@ -514,6 +532,7 @@ export const getSuggestions = asyncHandler(async (req, res, next) => {
       },
       follower: {
         select: {
+          id: true,
           follower: true,
           followerId: true,
           following: true,
@@ -524,7 +543,7 @@ export const getSuggestions = asyncHandler(async (req, res, next) => {
     },
   });
 
-  const connections: number[] = [id];
+  const connections: string[] = [id];
   const followingConnections = await prisma.connection.findMany({
     where: {
       followingId: id,
@@ -561,20 +580,36 @@ export const getSuggestions = asyncHandler(async (req, res, next) => {
 
   const suggestionsList: Suggestion[] = suggestions.map((user) => {
     let connectionState = ConnectionStateEnum.ADD;
-    let connection = user.follower.find((value) => value.followingId === id);
-    if (connection) {
+    let foundConnection = user.follower.find((value) => value.followingId === id);
+    let connection: Connection | undefined = undefined;
+    
+    if (foundConnection) {
       connectionState = ConnectionStateEnum.ACCEPT;
+      
+      connection = {
+        id: foundConnection.id,
+        followerId: foundConnection.followerId,
+        followingId: foundConnection.followingId,
+        pending: foundConnection.pending,
+      };
     } else {
-      connection = user.following.find((value) => value.followerId === id);
+      foundConnection = user.following.find((value) => value.followerId === id);
 
-      if (connection) {
+      if (foundConnection) {
         connectionState = ConnectionStateEnum.REQUEST;
+        
+        connection = {
+          id: foundConnection.id,
+          followerId: foundConnection.followerId,
+          followingId: foundConnection.followingId,
+          pending: foundConnection.pending,
+        };
       }
     }
 
     const suggestion: Suggestion = {
       user: user,
-      connection: connection,
+      connection,
       connectionState,
     };
     return suggestion;
@@ -584,27 +619,23 @@ export const getSuggestions = asyncHandler(async (req, res, next) => {
 });
 
 export const getConnectionState = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.userId);
-  const connectionId = Number(req.params.connectionId);
+  const id = req.params.userId;
+  const connectionId = req.params.connectionId;
 
   let connectionState = ConnectionStateEnum.ADD;
   let isFollowedBy = false;
-  let connection = await prisma.connection.findUnique({
+  let connection = await prisma.connection.findFirst({
     where: {
-      followingId_followerId: {
-        followerId: id,
-        followingId: connectionId,
-      },
+      followerId: id,
+      followingId: connectionId,
     },
   });
 
   if (!connection) {
-    connection = await prisma.connection.findUnique({
+    connection = await prisma.connection.findFirst({
       where: {
-        followingId_followerId: {
-          followerId: connectionId,
-          followingId: id,
-        },
+        followerId: connectionId,
+        followingId: id,
       },
     });
 
@@ -628,8 +659,8 @@ export const getConnectionState = asyncHandler(async (req, res, next) => {
 });
 
 export const requestForConnection = asyncHandler(async (req, res, next) => {
-  const id = parseInt(req.params.userId);
-  const connectionId = Number(req.params.connectionId);
+  const id = req.params.userId;
+  const connectionId = req.params.connectionId;
   const connection = await prisma.connection.create({
     data: { followerId: id, followingId: connectionId, pending: true },
   });
@@ -638,14 +669,24 @@ export const requestForConnection = asyncHandler(async (req, res, next) => {
 });
 
 export const acceptConnection = asyncHandler(async (req, res, next) => {
-  const id = parseInt(req.params.userId);
-  const connectionId = Number(req.params.connectionId);
+  const id = req.params.userId;
+  const connectionId = req.params.connectionId;
+  
+  // Find the connection first
+  const existingConnection = await prisma.connection.findFirst({
+    where: {
+      followerId: id,
+      followingId: connectionId,
+    },
+  });
+
+  if (!existingConnection) {
+    return next(ApiError.notFound("Connection not found"));
+  }
+
   const connection = await prisma.connection.update({
     where: {
-      followingId_followerId: {
-        followerId: id,
-        followingId: connectionId,
-      },
+      id: existingConnection.id,
     },
     data: { pending: false },
   });
@@ -654,14 +695,26 @@ export const acceptConnection = asyncHandler(async (req, res, next) => {
 });
 
 export const removeConnection = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.userId);
-  const connectionId = Number(req.params.connectionId);
+  const id = req.params.userId;
+  const connectionId = req.params.connectionId;
+  
+  // Find the connection first
+  const existingConnection = await prisma.connection.findFirst({
+    where: {
+      OR: [
+        { followerId: id, followingId: connectionId },
+        { followerId: connectionId, followingId: id },
+      ],
+    },
+  });
+
+  if (!existingConnection) {
+    return next(ApiError.notFound("Connection not found"));
+  }
+
   const connection = await prisma.connection.delete({
     where: {
-      followingId_followerId: {
-        followerId: id,
-        followingId: connectionId,
-      },
+      id: existingConnection.id,
     },
   });
   res.json(connection);
@@ -675,7 +728,7 @@ export const getAllConnections = asyncHandler(async (req, res, next) => {
 export const updateSettings = asyncHandler(async (req, res, next) => {
   const { language, theme, detailsPrivacy, connectionsPrivacy, postsPrivacy } =
     req.body;
-  const userId = Number(req.params.userId);
+  const userId = req.params.userId;
 
   const settings = await prisma.settings.upsert({
     where: {
@@ -702,7 +755,7 @@ export const updateSettings = asyncHandler(async (req, res, next) => {
 });
 
 export const getSettings = asyncHandler(async (req, res, next) => {
-  const userId = Number(req.params.userId);
+  const userId = req.params.userId;
   let settings = await prisma.settings.findUnique({
     where: {
       userId,

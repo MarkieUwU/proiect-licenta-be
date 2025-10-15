@@ -4,7 +4,7 @@ import asyncHandler from "express-async-handler";
 import { NotificationService } from "../services/notification.service";
 
 export const addCommentToPost = asyncHandler(async (req, res, next) => {
-  const postId = Number(req.params.postId);
+  const postId = req.params.postId;
   const { text, userId } = req.body;
   const user = await prisma.user.findUnique({
     where: {
@@ -17,7 +17,7 @@ export const addCommentToPost = asyncHandler(async (req, res, next) => {
 
   if (user) {
     const comment = await prisma.comment.create({
-    data: { postId: Number(postId), userId, text, author: user.fullName },
+    data: { postId, userId, text, author: user.fullName },
   });
 
     // Send notification to post owner and mentioned users
@@ -30,7 +30,7 @@ export const addCommentToPost = asyncHandler(async (req, res, next) => {
 });
 
 export const updateComment = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   const { text } = req.body;
   const comment = await prisma.comment.update({
     where: { id },
@@ -40,7 +40,7 @@ export const updateComment = asyncHandler(async (req, res, next) => {
 });
 
 export const deleteComment = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   const comment = await prisma.comment.delete({
     where: { id },
   });
@@ -48,7 +48,7 @@ export const deleteComment = asyncHandler(async (req, res, next) => {
 });
 
 export const getPostComments = asyncHandler(async (req, res, next) => {
-  const postId = Number(req.params.postId);
+  const postId = req.params.postId;
   const comments = await prisma.comment.findMany({
     orderBy: {
       createdAt: 'desc'

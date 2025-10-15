@@ -45,7 +45,7 @@ export const getFilteredPosts = asyncHandler(async (req, res, next) => {
       case PrivacyOptions.private:
         return false;
       case PrivacyOptions.followers:
-        return connections.includes(Number(userId));
+        return connections.includes(userId);
     }
   });
 
@@ -53,7 +53,7 @@ export const getFilteredPosts = asyncHandler(async (req, res, next) => {
 });
 
 export const createPostByUserId = asyncHandler(async (req, res, next) => {
-  const userId = Number(req.params.userId);
+  const userId = req.params.userId;
   const { title, image, content } = req.body;
   const post = await prisma.post.create({
     data: { title, image, content, userId },
@@ -62,7 +62,7 @@ export const createPostByUserId = asyncHandler(async (req, res, next) => {
 });
 
 export const updatePost = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   const { title, image, content } = req.body;
   const post = await prisma.post.update({
     data: { title, image, content },
@@ -72,7 +72,7 @@ export const updatePost = asyncHandler(async (req, res, next) => {
 });
 
 export const deletePost = asyncHandler(async (req, res, next) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
   const userId = req.user.id;
   const isAdmin = req.user.role === Role.ADMIN;
 

@@ -9,7 +9,7 @@ export class NotificationService {
     message,
     data,
   }: {
-    userId: number;
+    userId: string;
     type: NotificationType;
     message: string;
     data?: Record<string, any>;
@@ -25,7 +25,7 @@ export class NotificationService {
   }
 
   // Post Report Notifications
-  static async notifyPostReported(postId: number, reportId: number) {
+  static async notifyPostReported(postId: string, reportId: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
       include: { user: true },
@@ -69,7 +69,7 @@ export class NotificationService {
   }
 
   // Post Status Change Notifications
-  static async notifyPostStatusChange(postId: number, newStatus: ContentStatus, reason?: string) {
+  static async notifyPostStatusChange(postId: string, newStatus: ContentStatus, reason?: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
       include: { user: true },
@@ -110,7 +110,7 @@ export class NotificationService {
   }
 
   // Comment Status Change Notifications
-  static async notifyCommentStatusChange(commentId: number, newStatus: ContentStatus, reason?: string) {
+  static async notifyCommentStatusChange(commentId: string, newStatus: ContentStatus, reason?: string) {
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
       include: { 
@@ -160,7 +160,7 @@ export class NotificationService {
   }
 
   // Engagement Notifications
-  static async notifyPostLiked(postId: number, likerId: number) {
+  static async notifyPostLiked(postId: string, likerId: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
       include: { user: true },
@@ -185,7 +185,7 @@ export class NotificationService {
     });
   }
 
-  static async notifyNewComment(postId: number, commentId: number, commenterId: number) {
+  static async notifyNewComment(postId: string, commentId: string, commenterId: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
       include: { user: true },
@@ -255,7 +255,7 @@ export class NotificationService {
   }
 
   // System Notifications
-  static async notifySystemAnnouncement(message: string, userIds?: number[]) {
+  static async notifySystemAnnouncement(message: string, userIds?: string[]) {
     const users = userIds 
       ? await prisma.user.findMany({ where: { id: { in: userIds } } })
       : await prisma.user.findMany();
@@ -273,7 +273,7 @@ export class NotificationService {
   }
 
   // Account Warning Notifications
-  static async notifyAccountWarning(userId: number, reason: string) {
+  static async notifyAccountWarning(userId: string, reason: string) {
     await this.createNotification({
       userId,
       type: NotificationType.ACCOUNT_WARNING,

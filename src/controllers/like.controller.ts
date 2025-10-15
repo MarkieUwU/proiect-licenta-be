@@ -18,7 +18,7 @@ export const deleteLike = asyncHandler(async (req, res, next) => {
   const { userId, postId } = req.query;
   const like = await prisma.like.findFirst({
     where: {
-      AND: [{ userId: Number(userId) }, { postId: Number(postId) }],
+      AND: [{ userId: userId as string }, { postId: postId as string }],
     },
   });
 

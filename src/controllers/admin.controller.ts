@@ -171,7 +171,7 @@ export const updateUserRole = asyncHandler(async (req, res, next) => {
   }
 
   const user = await prisma.user.update({
-    where: { id: Number(userId) },
+    where: { id: userId },
     data: { role },
     select: {
       id: true,
@@ -255,7 +255,7 @@ export const updatePostStatus = asyncHandler(async (req, res) => {
   const { status, reason } = req.body;
 
   const post = await prisma.post.update({
-    where: { id: Number(id) },
+    where: { id },
     data: { 
       status,
       ...(status === ContentStatus.ARCHIVED && {
@@ -279,7 +279,7 @@ export const getPostReports = asyncHandler(async (req, res) => {
   const { postId } = req.params;
 
   const reports = await prisma.report.findMany({
-    where: { postId: Number(postId) },
+    where: { postId },
     include: {
       user: {
         select: {
@@ -300,10 +300,10 @@ export const getAllPostReports = asyncHandler(async (req, res) => {
   const skip = (Number(page) - 1) * Number(limit);
 
   let where: any = { commentId: null };
-  if (postId) where.postId = Number(postId);
+  if (postId) where.postId = postId;
 
   if (authorId) {
-    where.AND = [{ post: { user: { id: Number(authorId) } } }];
+    where.AND = [{ post: { user: { id: authorId } } }];
   }
 
   let orderBy: any;
@@ -453,7 +453,7 @@ export const updateCommentStatus = asyncHandler(async (req, res) => {
   const { status, reason } = req.body;
 
   const comment = await prisma.comment.update({
-    where: { id: Number(id) },
+    where: { id },
     data: { status },
   });
 
@@ -467,12 +467,12 @@ export const getAllCommentReports = asyncHandler(async (req, res) => {
   const skip = (Number(page) - 1) * Number(limit);
 
   let where: any = { commentId: { not: null } };
-  if (commentId) where.commentId = Number(commentId);
+  if (commentId) where.commentId = commentId;
   if (authorId) {
-    where.AND = [{ comment: { user: { id: Number(authorId) } } }];
+    where.AND = [{ comment: { user: { id: authorId } } }];
   }
   if (postId) {
-    where.AND = [...where.AND, { comment: { post: { id: Number(postId) } } }];
+    where.AND = [...where.AND, { comment: { post: { id: postId } } }];
   }
 
   let orderBy: any;

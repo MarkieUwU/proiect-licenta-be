@@ -49,7 +49,7 @@ export const markAsRead = asyncHandler(async (req, res) => {
 
   const notification = await prisma.notification.update({
     where: {
-      id: Number(notificationId),
+      id: notificationId,
       userId, // Ensure user owns the notification
     },
     data: { read: true },
@@ -76,7 +76,7 @@ export const deleteNotification = asyncHandler(async (req, res, next) => {
   // First check if the notification exists and belongs to the user
   const notification = await prisma.notification.findFirst({
     where: {
-      id: Number(notificationId),
+      id: notificationId,
       userId,
     },
   });
@@ -94,7 +94,7 @@ export const deleteNotification = asyncHandler(async (req, res, next) => {
 
   await prisma.notification.delete({
     where: {
-      id: Number(notificationId),
+      id: notificationId,
     },
   });
 
