@@ -4,6 +4,19 @@ import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+// Helper function to check if any connection exists between two users (bidirectional)
+async function connectionExists(userId1, userId2) {
+  const connection = await prisma.connection.findFirst({
+    where: {
+      OR: [
+        { followerId: userId1, followingId: userId2 },
+        { followerId: userId2, followingId: userId1 }
+      ]
+    }
+  });
+  return !!connection;
+}
+
 async function seed() {
   try {
     // Clear all existing data to ensure a clean slate
@@ -226,42 +239,54 @@ async function seed() {
       });
     }
 
-    // Create Connections (Followers/Following)
-    const numConnections = 60;
-    for (let i = 0; i < numConnections; i++) {
+    // Create Connections (Followers/Following) - Complete bidirectional prevention
+    console.log('Creating connections with complete bidirectional prevention...');
+    
+    const targetConnections = 60;
+    let successfulConnections = 0;
+    let attempts = 0;
+    const maxAttempts = targetConnections * 4; // Increased attempts since we'll skip more
+    
+    while (successfulConnections < targetConnections && attempts < maxAttempts) {
+      attempts++;
+      
       const follower = faker.helpers.arrayElement(users);
       const following = faker.helpers.arrayElement(users);
 
-      // Ensure follower and following are different
-      if (follower.id !== following.id) {
-        // Avoid duplicate connections
-        let existingConnection = await prisma.connection.findFirst({
-          where: {
-            followingId: following.id,
+      // Skip if same user
+      if (follower.id === following.id) {
+        continue;
+      }
+
+      // Check if ANY connection exists between these users (in either direction)
+      if (await connectionExists(follower.id, following.id)) {
+        continue;
+      }
+
+      try {
+        await prisma.connection.create({
+          data: {
             followerId: follower.id,
+            followingId: following.id,
+            pending: faker.datatype.boolean({ probability: 0.3 }),
           },
         });
-
-        if (existingConnection) continue;
-
-        existingConnection = await prisma.connection.findFirst({
-          where: {
-            followingId: follower.id,
-            followerId: following.id,
-          },
-        });
-
-        if (!existingConnection) {
-          await prisma.connection.create({
-            data: {
-              followerId: follower.id,
-              followingId: following.id,
-              pending: faker.datatype.boolean({ probability: 0.3 }),
-            },
-          });
+        
+        successfulConnections++;
+        
+        if (successfulConnections % 10 === 0) {
+          console.log(`Created ${successfulConnections} unique connections...`);
+        }
+      } catch (error) {
+        if (error.code === 'P2002') {
+          console.log(`Prevented duplicate connection: ${follower.id} -> ${following.id}`);
+        } else {
+          console.error('Error creating connection:', error);
         }
       }
     }
+    
+    console.log(`Successfully created ${successfulConnections} unique connections out of ${attempts} attempts`);
 
     // Create Reports
     const numReports = 30;
@@ -554,65 +579,72 @@ async function seed() {
     const regularUsers = users.filter(u => u.username !== 'admin');
     
     if (adminUserForNotifications && regularUsers.length > 0) {
-      // Add 8 incoming friend requests to the admin user
-      for (let i = 0; i < 8 && i < regularUsers.length; i++) {
+      console.log('Creating admin connections with bidirectional prevention...');
+      
+      // Create connections for admin (using the same bidirectional prevention)
+      let adminConnectionsCreated = 0;
+      
+      for (let i = 0; i < Math.min(20, regularUsers.length); i++) {
         const regularUser = regularUsers[i];
-        // Check if this user already has a connection to admin
-        const existingRequest = await prisma.connection.findFirst({
-          where: {
-            followerId: regularUser.id,
-            followingId: adminUserForNotifications.id,
-          },
-        });
-        if (!existingRequest) {
-          await prisma.connection.create({
-            data: {
-              followerId: regularUser.id,
-              followingId: adminUserForNotifications.id,
-              pending: true,
-            },
-          });
+        
+        // Check if ANY connection exists between admin and this user
+        if (!(await connectionExists(adminUserForNotifications.id, regularUser.id))) {
+          // Randomly decide the direction and pending status
+          const adminInitiates = faker.datatype.boolean({ probability: 0.7 }); // Admin more likely to initiate
+          const isPending = faker.datatype.boolean({ probability: 0.4 }); // 40% chance of pending
+          
+          try {
+            await prisma.connection.create({
+              data: {
+                followerId: adminInitiates ? adminUserForNotifications.id : regularUser.id,
+                followingId: adminInitiates ? regularUser.id : adminUserForNotifications.id,
+                pending: isPending,
+              },
+            });
+            
+            adminConnectionsCreated++;
+            
+            // Stop creating if we've reached our target
+            if (adminConnectionsCreated >= 15) break;
+            
+          } catch (error) {
+            if (error.code !== 'P2002') {
+              console.error('Error creating admin connection:', error);
+            }
+          }
         }
       }
-
-      // Create more connections for admin user (both following and followers)
-      for (let i = 0; i < Math.min(15, regularUsers.length); i++) {
+      
+      console.log(`Created ${adminConnectionsCreated} unique admin connections`);
+      
+      // Create some additional pending requests TO admin (from users not yet connected)
+      let pendingRequestsCreated = 0;
+      
+      for (let i = 0; i < regularUsers.length && pendingRequestsCreated < 8; i++) {
         const regularUser = regularUsers[i];
-        // Check if admin already follows this user
-        const existingAdminFollowing = await prisma.connection.findFirst({
-          where: {
-            followerId: adminUserForNotifications.id,
-            followingId: regularUser.id,
-          },
-        });
-        // Admin follows regular user (if not already following)
-        if (!existingAdminFollowing) {
-          await prisma.connection.create({
-            data: {
-              followerId: adminUserForNotifications.id,
-              followingId: regularUser.id,
-              pending: false,
-            },
-          });
-        }
-        // Check if regular user already follows admin
-        const existingUserFollowingAdmin = await prisma.connection.findFirst({
-          where: {
-            followerId: regularUser.id,
-            followingId: adminUserForNotifications.id,
-          },
-        });
-        // Regular user follows admin (for some users, if not already following)
-        if (i < 10 && !existingUserFollowingAdmin) {
-          await prisma.connection.create({
-            data: {
-              followerId: regularUser.id,
-              followingId: adminUserForNotifications.id,
-              pending: false,
-            },
-          });
+        
+        // Check if NO connection exists between this user and admin
+        if (!(await connectionExists(regularUser.id, adminUserForNotifications.id))) {
+          try {
+            await prisma.connection.create({
+              data: {
+                followerId: regularUser.id,
+                followingId: adminUserForNotifications.id,
+                pending: true, // Always pending (request TO admin)
+              },
+            });
+            
+            pendingRequestsCreated++;
+            
+          } catch (error) {
+            if (error.code !== 'P2002') {
+              console.error('Error creating pending request to admin:', error);
+            }
+          }
         }
       }
+      
+      console.log(`Created ${pendingRequestsCreated} pending requests to admin`);
       
       // Create admin-specific notifications
       const adminNotifications = [
@@ -784,13 +816,77 @@ async function seed() {
     console.log(`Connections: ${stats[4]}`);
     console.log(`Reports: ${stats[5]}`);
     console.log(`Notifications: ${stats[6]}`);
+    
+    // Verify no bidirectional connections exist
+    console.log('\n=== CONNECTION INTEGRITY CHECK ===');
+    
+    // Get all connections and check for bidirectional pairs
+    const connectionsForCheck = await prisma.connection.findMany({
+      select: {
+        followerId: true,
+        followingId: true,
+        pending: true
+      }
+    });
+    
+    // Find bidirectional connections
+    const bidirectionalPairs = [];
+    const processedPairs = new Set();
+    
+    for (const conn of connectionsForCheck) {
+      const pairKey = `${conn.followerId}-${conn.followingId}`;
+      const reversePairKey = `${conn.followingId}-${conn.followerId}`;
+      
+      // Skip if we already processed this pair
+      if (processedPairs.has(pairKey) || processedPairs.has(reversePairKey)) {
+        continue;
+      }
+      
+      // Look for the reverse connection
+      const reverseConnection = connectionsForCheck.find(c => 
+        c.followerId === conn.followingId && c.followingId === conn.followerId
+      );
+      
+      if (reverseConnection) {
+        bidirectionalPairs.push({
+          user1: conn.followerId,
+          user2: conn.followingId,
+          pending1: conn.pending,
+          pending2: reverseConnection.pending
+        });
+        
+        // Mark both directions as processed
+        processedPairs.add(pairKey);
+        processedPairs.add(reversePairKey);
+      }
+    }
+    
+    if (bidirectionalPairs.length > 0) {
+      console.log(`❌ Found ${bidirectionalPairs.length} bidirectional connections:`);
+      bidirectionalPairs.forEach((pair, index) => {
+        console.log(`${index + 1}. User ${pair.user1} ⟷ User ${pair.user2} (pending: ${pair.pending1}/${pair.pending2})`);
+      });
+    } else {
+      console.log('✅ No bidirectional connections found - database is clean!');
+    }
+    
+    // Additional connection statistics
+    const connectionStats = await Promise.all([
+      prisma.connection.count({ where: { pending: true } }),
+      prisma.connection.count({ where: { pending: false } })
+    ]);
+    
+    console.log(`Pending Connections: ${connectionStats[0]}`);
+    console.log(`Accepted Connections: ${connectionStats[1]}`);
     console.log('\n' + '='.repeat(60));
 
     console.log('Seeding completed successfully!');
   } catch (error) {
     console.error('Error seeding the database:', error);
+    process.exit(1);
   } finally {
     await prisma.$disconnect();
+    console.log('Database connection closed');
   }
 }
 

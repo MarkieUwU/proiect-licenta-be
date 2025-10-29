@@ -12,7 +12,7 @@ model User {
   id            String          @id @default(auto()) @map("_id") @db.ObjectId
   profileImage  String
   fullName      String
-  username      String          @unique
+  username      String
   email         String          @unique
   passwordHash  String
   bio           String?
@@ -27,6 +27,10 @@ model User {
   notifications Notification[]
   follower      Connection[]    @relation("follower")
   following     Connection[]    @relation("following")
+
+  @@index([fullName])
+  @@index([username])
+  @@index([fullName, username])
 }
 
 model Connection {
@@ -36,6 +40,11 @@ model Connection {
   following   User      @relation("following", fields: [followingId], references: [id])
   followingId String    @db.ObjectId
   pending     Boolean
+
+  @@index([followerId, pending])
+  @@index([followingId, pending])
+  @@unique([followerId, followingId])
+  @@unique([followingId, followerId])
 }
 
 model Post {

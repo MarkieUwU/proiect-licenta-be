@@ -18,6 +18,7 @@ import {
   sendPasswordResetEmail,
   resetPassword,
   verifyResetToken,
+  getUserProfileImage,
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -31,6 +32,7 @@ router.put('/password/reset/:userId', resetPassword);
 router.use(isAuthenticated);
 
 router.post("/details", getUserDetails);
+router.get("/profileImage/:id", getUserProfileImage);
 router.put("/:id", editProfile);
 router.get("/connections/all", getAllConnections);
 router.post("/connections/:id", getConnections);

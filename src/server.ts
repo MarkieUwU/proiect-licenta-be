@@ -27,6 +27,38 @@ app.use(routeNotFoundHandler);
 
 app.use(apiErrorHandler);
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Listening on port ${port}`);
 });
+
+async function gracefulShutdown(signal: string) {
+  console.log(`\n Received ${signal}. String graceful shutdown...`);
+
+  try {
+    server.close(() => {
+      console.log('HTTP server closed');
+    });
+
+    await prisma.$disconnect();
+    console.log('Database connection closed');
+    process.exit(0);
+  } catch (error) {
+    console.log('Error during shutdown:', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+process.on('uncaughtException', async (error) => {
+  console.error('Uncaught Exception:', error);
+  await prisma.$disconnect();
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  await prisma.$disconnect();
+  process.exit(1);
+})

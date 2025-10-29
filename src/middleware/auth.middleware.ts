@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import asyncHandler from "express-async-handler";
 import { ApiError } from "../error/ApiError";
-import type { LoggedUser } from "../models/user-profile.model";
+import type { LoggedUser } from "../models/user.model";
 import { prisma } from "../server";
 import type { Role } from "../models/enums/role.enum";
 

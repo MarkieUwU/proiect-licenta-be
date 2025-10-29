@@ -3,106 +3,54 @@ import { prisma } from '../server';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { ApiError } from '../error/ApiError';
-import type { ConnectionRequest } from '../models/connection.model';
 import type {
-  ConnectionUser,
   LoggedUser,
+  SettingsRequest,
   UserProfile,
-} from '../models/user-profile.model';
-import { ConnectionStateEnum } from '../models/enums/connection-state.enum';
-import { PrivacyOptions } from '../models/enums/privacy-optinos.enum';
+  UserSettings,
+} from '../models/user.model';
 import { Theme } from '../models/enums/theme.enum';
-import type { Suggestion } from '../models/suggestion.model';
-import type { Connection } from '@prisma/client';
-import nodemailer from 'nodemailer';
 import type { Role } from '../models/enums/role.enum';
-
-const mailPasscode = process.env.MAIL_PASSCODE;
-
-const gmailTransporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: 'sabiadeaur@gmail.com',
-    pass: mailPasscode,
-  },
-});
+import { ConnectionService } from '../services/connection.service';
+import { UserService } from '../services/user.service';
+import { PostService } from '../services/post.service';
 
 export const getUserDetails = asyncHandler(async (req, res, next) => {
   const { username } = req.body;
-  let user = null;
+  const userDetails = await UserService.getUserDetails(username);
 
-  user = await prisma.user.findUnique({
-    where: {
-      username,
-    },
-    include: {
-      posts: {
-        where: { status: { not: 'ARCHIVED' } },
-        include: {
-          user: true,
-          comments: {
-            where: { status: { not: 'ARCHIVED' } },
-          },
-          likes: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      },
-      following: {
-        include: { follower: true },
-      },
-      follower: {
-        include: { following: true },
-      },
-      settings: true,
-    },
-  });
-
-  if (!user) {
+  if (!userDetails) {
     next(ApiError.notFound('User not found'));
     return;
   }
 
-  const connections: ConnectionUser[] = [
-    ...user.follower
-      .filter((value) => !value.pending)
-      .map((value) => {
-        const connectionUser: ConnectionUser = {
-          id: value.following.id,
-          profileImage: value.following.profileImage,
-          username: value.following.username,
-          fullName: value.following.fullName,
-        };
-        return connectionUser;
-      }),
-    ...user.following
-      .filter((value) => !value.pending)
-      .map((value) => {
-        const connectionUser: ConnectionUser = {
-          id: value.follower.id,
-          profileImage: value.follower.profileImage,
-          username: value.follower.username,
-          fullName: value.follower.fullName,
-        };
-        return connectionUser;
-      }),
-  ];
+  const [posts, connections] = await Promise.all([
+    PostService.getUserPosts(userDetails.id),
+    ConnectionService.getConnections(userDetails.id, '', 6),
+  ]);
 
-  const userResponse: UserProfile = {
-    id: user.id,
-    profileImage: user.profileImage,
-    username: user.username,
-    fullName: user.fullName,
-    email: user.email,
-    ...(user.gender ? { gender: user.gender } : {}),
-    bio: user.bio,
-    posts: user.posts,
-    connections,
-    ...(user.settings && { settings: user.settings }),
+  const response: UserProfile = {
+    ...userDetails,
+    posts,
+    connections: connections.map((con) => con.user),
   };
 
-  res.json(userResponse);
+  res.json(response);
+});
+
+export const getUserProfileImage = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const user = await prisma.user.findFirst({
+    where: { id },
+    select: { profileImage: true },
+  });
+
+  if (!user?.profileImage) {
+    return next(ApiError.notFound('Profile image not found'));
+  }
+
+  res.json(user.profileImage);
 });
 
 export const registerUser = asyncHandler(async (req, res, next) => {
@@ -117,79 +65,33 @@ export const registerUser = asyncHandler(async (req, res, next) => {
     language,
   } = req.body;
 
-  const [verifyEmail, verifyUsername] = await Promise.all([
-    prisma.user.findFirst({
-      where: { email },
-      select: { email: true },
-    }),
-    prisma.user.findFirst({
-      where: { username },
-      select: { username: true },
-    }),
-  ]);
+  const exinstingUser = await prisma.user.findFirst({
+    where: {
+      OR: [email, username],
+    },
+  });
 
-  if (verifyEmail?.email && verifyUsername?.username) {
-    return next(ApiError.badRequest('Both username and email already exist!'));
-  }
-
-  if (verifyEmail?.email) {
-    return next(ApiError.badRequest('Email already exists!'));
-  }
-
-  if (verifyUsername?.username) {
-    return next(ApiError.badRequest('Username already exists!'));
+  if (exinstingUser) {
+    return next(ApiError.badRequest('User already exists!'));
   }
 
   if (password !== confirmPassword) {
     return next(ApiError.badRequest("Passwords don't match"));
   }
 
-  const salt = bcrypt.genSaltSync(10);
-  const passwordHash = bcrypt.hashSync(password, salt);
-
-  const user = await prisma.user.create({
-    data: {
-      fullName,
-      username,
-      email,
-      passwordHash,
-      profileImage: '',
-      ...(gender?.length && { gender }),
-    },
-  });
-
-  await prisma.settings.create({
-    data: {
-      theme: theme || Theme.dark,
-      language,
-      detailsPrivacy: PrivacyOptions.public,
-      connectionsPrivacy: PrivacyOptions.public,
-      postsPrivacy: PrivacyOptions.public,
-      userId: user.id,
-    },
-  });
-
-  const userProfile: LoggedUser = {
-    id: user.id,
-    username: user.username,
-    fullName: user.fullName,
-    email: user.email,
-    theme: theme || Theme.dark,
+  const request = {
+    fullName,
+    username,
+    email,
+    password,
+    gender,
+    confirmPassword,
+    theme,
     language,
-    role: user.role as Role,
   };
+  const registerResponse = await UserService.registerUser(request);
 
-  const jwtSecret = process.env.JWT_SECRET;
-
-  if (!jwtSecret) {
-    return next(ApiError.internal('JWT secret is not set'));
-  }
-
-  jwt.sign(userProfile, jwtSecret, { expiresIn: '2d' }, (err, token) => {
-    if (err) return next(err);
-
-    res.json({ token, userProfile });
-  });
+  res.json(registerResponse);
 });
 
 export const loginUser = asyncHandler(async (req, res, next) => {
@@ -210,25 +112,9 @@ export const loginUser = asyncHandler(async (req, res, next) => {
     return next(ApiError.unauthorized('Username or password is incorrect'));
   }
 
-  await prisma.settings.upsert({
-    where: {
-      userId: user.id,
-    },
-    update: {
-      theme: theme || Theme.dark,
-      language,
-    },
-    create: {
-      theme: theme || Theme.dark,
-      language: language || 'en',
-      detailsPrivacy: PrivacyOptions.public,
-      connectionsPrivacy: PrivacyOptions.public,
-      postsPrivacy: PrivacyOptions.public,
-      userId: user.id,
-    },
-  });
+  await UserService.upsertSettings(user.id, { theme, language })
 
-  const userProfile: LoggedUser = {
+  const loggedUser: LoggedUser = {
     id: user.id,
     username: user.username,
     fullName: user.fullName,
@@ -237,29 +123,13 @@ export const loginUser = asyncHandler(async (req, res, next) => {
     language,
     role: user.role as Role,
   };
+  const token = UserService.getJWTToken(loggedUser);
 
-  const jwtSecret = process.env.JWT_SECRET;
-
-  if (!jwtSecret) {
-    return next(ApiError.internal('JWT secret is not set'));
-  }
-
-  jwt.sign(userProfile, jwtSecret, { expiresIn: '2d' }, (err, token) => {
-    if (err) {
-      return next(err);
-    }
-
-    res.json({ token, userProfile });
-  });
+  res.json({ token, loggedUser });
 });
 
 export const sendPasswordResetEmail = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
-  const resetJwtSecret = process.env.RESET_JWT_SECRET;
-
-  if (!resetJwtSecret) {
-    return next(ApiError.internal('Reset JWT secret is not set'));
-  }
 
   const user = await prisma.user.findUnique({
     where: { email },
@@ -269,27 +139,8 @@ export const sendPasswordResetEmail = asyncHandler(async (req, res, next) => {
     return next(ApiError.notFound('User not found'));
   }
 
-  const token = jwt.sign({ userId: user.id }, resetJwtSecret, {
-    expiresIn: '1h',
-  });
-  const resetLink = `${process.env.FE_URL}/reset-password/${token}`;
-
-  await gmailTransporter.sendMail({
-    from: 'SocialMediaApp <no-reply@socialmediapp.com',
-    to: email,
-    subject: 'Password Reset Request',
-    html: `
-      <p>You requested a password reset. Click the button to reset your password:</p>
-      <p>
-        <a 
-          style="background-color: #5696b9; border-radius: 20px; text-decoration: none; color: white; padding: 0.5rem 1rem;" 
-          href="${resetLink}">
-            Reset password
-        </a>
-      </p>
-      <p style="margin-top: 1rem">If you did not request this, please ignore this email.</p>`,
-  });
-
+  await UserService.sendPasswordResetEmail(user.id, email)
+  
   res.json(null);
 });
 
@@ -297,18 +148,12 @@ export const verifyResetToken = asyncHandler(async (req, res, next) => {
   const { token } = req.params;
   const resetJwtSecret = process.env.RESET_JWT_SECRET;
 
-  if (!resetJwtSecret) {
-    return next(ApiError.internal('Reset JWT secret is not set'));
-  }
-
-  jwt.verify(token, resetJwtSecret, (err, decoded) => {
+  jwt.verify(token, resetJwtSecret!, (err, decoded) => {
     if (err?.name === 'TokenExpiredError') {
-      console.log('here');
       return next(ApiError.unauthorized('Password reset link has expired.'));
     }
 
     if (err) {
-      console.log('or here');
       return next(ApiError.unauthorized('Password reset link is invalid.'));
     }
 
@@ -355,150 +200,15 @@ export const editProfile = asyncHandler(async (req, res, next) => {
 
 export const getConnections = asyncHandler(async (req, res, next) => {
   const id = req.params.id;
-  const searchString = req.body.searchString?.toLowerCase();
+  const searchString = req.body.searchString;
+  const connections = await ConnectionService.getConnections(id, searchString);
 
-  const whereClause: any = {
-    OR: [
-      {
-        followerId: id,
-        following: searchString?.length
-          ? {
-              fullName: {
-                contains: searchString,
-                mode: 'insensitive',
-              },
-            }
-          : undefined,
-      },
-      {
-        followingId: id,
-        follower: searchString?.length
-          ? {
-              fullName: {
-                contains: searchString,
-                mode: 'insensitive',
-              },
-            }
-          : undefined,
-      },
-    ],
-    pending: false,
-  };
-
-  const connections = await prisma.connection.findMany({
-    where: whereClause,
-    select: {
-      follower: {
-        select: {
-          id: true,
-          profileImage: true,
-          fullName: true,
-          username: true,
-          email: true,
-          bio: true,
-          gender: true,
-          createdAt: true,
-          _count: {
-            select: {
-              follower: { where: { pending: false } },
-              following: { where: { pending: false } },
-              posts: { where: { status: { not: 'ARCHIVED' } } },
-            },
-          },
-        },
-      },
-      following: {
-        select: {
-          id: true,
-          profileImage: true,
-          fullName: true,
-          username: true,
-          email: true,
-          bio: true,
-          gender: true,
-          createdAt: true,
-          _count: {
-            select: {
-              follower: { where: { pending: false } },
-              following: { where: { pending: false } },
-              posts: true,
-            },
-          },
-        },
-      },
-      followerId: true,
-      followingId: true,
-      pending: true,
-    },
-  });
-
-  let users = connections.map((conn) => {
-    const user = conn.followerId === id ? conn.following : conn.follower;
-    const connectionCount =
-      (user._count?.follower || 0) + (user._count?.following || 0);
-    const postsCount = user._count?.posts || 0;
-    return {
-      user: {
-        ...user,
-        connectionCount,
-        postsCount,
-      },
-      userId: user.id,
-      pending: conn.pending,
-      connection: conn,
-    };
-  });
-
-  if (searchString) {
-    users = users.filter((user) => {
-      return user.user.fullName.toLowerCase().includes(searchString);
-    });
-  }
-
-  res.json(users);
+  res.json(connections);
 });
 
 export const getConnectionRequests = asyncHandler(async (req, res, next) => {
   const id = req.params.id;
-  const connections = await prisma.connection.findMany({
-    where: {
-      followingId: id,
-    },
-    select: {
-      follower: {
-        select: {
-          id: true,
-          profileImage: true,
-          fullName: true,
-          username: true,
-          email: true,
-          gender: true,
-          bio: true,
-          createdAt: true,
-          posts: {
-            where: { status: { not: 'ARCHIVED' } },
-          },
-          following: true,
-          follower: true,
-        },
-      },
-      followerId: true,
-      followingId: true,
-      pending: true,
-    },
-  });
-
-  const connectionRequests: ConnectionRequest[] = [
-    ...connections
-      .filter((connection) => connection.pending)
-      .map((connection) => {
-        return {
-          user: connection.follower,
-          userId: connection.followerId,
-          connectionId: connection.followingId,
-        };
-      }),
-  ];
+  const connectionRequests = await ConnectionService.getConnectionRequests(id);
 
   res.json(connectionRequests);
 });
@@ -506,161 +216,39 @@ export const getConnectionRequests = asyncHandler(async (req, res, next) => {
 export const getSuggestions = asyncHandler(async (req, res, next) => {
   const id = req.params.id;
   const searchString = req.body.searchString?.toLowerCase();
+  const suggestions = await ConnectionService.getSuggestions(id, searchString);
 
-  const users = await prisma.user.findMany({
-    select: {
-      id: true,
-      profileImage: true,
-      fullName: true,
-      username: true,
-      email: true,
-      gender: true,
-      bio: true,
-      createdAt: true,
-      posts: {
-        where: { status: { not: 'ARCHIVED' } },
-      },
-      following: {
-        select: {
-          id: true,
-          follower: true,
-          followerId: true,
-          following: true,
-          followingId: true,
-          pending: true,
-        },
-      },
-      follower: {
-        select: {
-          id: true,
-          follower: true,
-          followerId: true,
-          following: true,
-          followingId: true,
-          pending: true,
-        },
-      },
-    },
-  });
-
-  const connections: string[] = [id];
-  const followingConnections = await prisma.connection.findMany({
-    where: {
-      followingId: id,
-      pending: false,
-    },
-    select: {
-      followerId: true,
-    },
-  });
-  connections.push(...followingConnections.map((data) => data.followerId));
-
-  const followedByConnections = await prisma.connection.findMany({
-    where: {
-      followerId: id,
-      pending: false,
-    },
-    select: {
-      followingId: true,
-    },
-  });
-  connections.push(...followedByConnections.map((data) => data.followingId));
-
-  let suggestions;
-
-  if (searchString?.length) {
-    suggestions = users.filter(
-      (user) =>
-        !connections.includes(user.id) &&
-        user.fullName.toLowerCase().includes(searchString)
-    );
-  } else {
-    suggestions = users.filter((user) => !connections.includes(user.id));
-  }
-
-  const suggestionsList: Suggestion[] = suggestions.map((user) => {
-    let connectionState = ConnectionStateEnum.ADD;
-    let foundConnection = user.follower.find((value) => value.followingId === id);
-    let connection: Connection | undefined = undefined;
-    
-    if (foundConnection) {
-      connectionState = ConnectionStateEnum.ACCEPT;
-      
-      connection = {
-        id: foundConnection.id,
-        followerId: foundConnection.followerId,
-        followingId: foundConnection.followingId,
-        pending: foundConnection.pending,
-      };
-    } else {
-      foundConnection = user.following.find((value) => value.followerId === id);
-
-      if (foundConnection) {
-        connectionState = ConnectionStateEnum.REQUEST;
-        
-        connection = {
-          id: foundConnection.id,
-          followerId: foundConnection.followerId,
-          followingId: foundConnection.followingId,
-          pending: foundConnection.pending,
-        };
-      }
-    }
-
-    const suggestion: Suggestion = {
-      user: user,
-      connection,
-      connectionState,
-    };
-    return suggestion;
-  });
-
-  res.json(suggestionsList);
+  res.json(suggestions);
 });
 
 export const getConnectionState = asyncHandler(async (req, res, next) => {
   const id = req.params.userId;
   const connectionId = req.params.connectionId;
+  const connectionState = await ConnectionService.getConnectionState(
+    id,
+    connectionId
+  );
 
-  let connectionState = ConnectionStateEnum.ADD;
-  let isFollowedBy = false;
-  let connection = await prisma.connection.findFirst({
-    where: {
-      followerId: id,
-      followingId: connectionId,
-    },
-  });
-
-  if (!connection) {
-    connection = await prisma.connection.findFirst({
-      where: {
-        followerId: connectionId,
-        followingId: id,
-      },
-    });
-
-    if (connection) isFollowedBy = true;
-  }
-
-  if (isFollowedBy && connection?.pending) {
-    connectionState = ConnectionStateEnum.ACCEPT;
-  } else if (connection?.pending) {
-    connectionState = ConnectionStateEnum.REQUEST;
-  } else if (connection) {
-    connectionState = ConnectionStateEnum.CONNECTED;
-  }
-
-  const result = {
-    connection: connection,
-    connectionState: connectionState,
-  };
-
-  res.json(result);
+  res.json(connectionState);
 });
 
 export const requestForConnection = asyncHandler(async (req, res, next) => {
   const id = req.params.userId;
   const connectionId = req.params.connectionId;
+
+  const existingConnection = await prisma.connection.findFirst({
+    where: {
+      OR: [
+        { followerId: id, followingId: connectionId },
+        { followerId: connectionId, followingId: id },
+      ],
+    },
+  });
+
+  if (existingConnection) {
+    return next(ApiError.badRequest('Connection already exists'));
+  }
+
   const connection = await prisma.connection.create({
     data: { followerId: id, followingId: connectionId, pending: true },
   });
@@ -671,34 +259,27 @@ export const requestForConnection = asyncHandler(async (req, res, next) => {
 export const acceptConnection = asyncHandler(async (req, res, next) => {
   const id = req.params.userId;
   const connectionId = req.params.connectionId;
-  
-  // Find the connection first
-  const existingConnection = await prisma.connection.findFirst({
+
+  const connection = await prisma.connection.updateMany({
     where: {
       followerId: id,
       followingId: connectionId,
-    },
-  });
-
-  if (!existingConnection) {
-    return next(ApiError.notFound("Connection not found"));
-  }
-
-  const connection = await prisma.connection.update({
-    where: {
-      id: existingConnection.id,
+      pending: true,
     },
     data: { pending: false },
   });
 
-  res.json(connection);
+  if (!connection.count) {
+    return next(ApiError.notFound('Connection not found'));
+  }
+
+  res.json();
 });
 
 export const removeConnection = asyncHandler(async (req, res, next) => {
   const id = req.params.userId;
   const connectionId = req.params.connectionId;
-  
-  // Find the connection first
+
   const existingConnection = await prisma.connection.findFirst({
     where: {
       OR: [
@@ -709,7 +290,7 @@ export const removeConnection = asyncHandler(async (req, res, next) => {
   });
 
   if (!existingConnection) {
-    return next(ApiError.notFound("Connection not found"));
+    return next(ApiError.notFound('Connection not found'));
   }
 
   const connection = await prisma.connection.delete({
@@ -729,52 +310,39 @@ export const updateSettings = asyncHandler(async (req, res, next) => {
   const { language, theme, detailsPrivacy, connectionsPrivacy, postsPrivacy } =
     req.body;
   const userId = req.params.userId;
+  const request: SettingsRequest = {
+    language,
+    theme,
+    detailsPrivacy,
+    connectionsPrivacy,
+    postsPrivacy,
+  };
 
-  const settings = await prisma.settings.upsert({
-    where: {
-      userId,
-    },
-    update: {
-      language,
-      theme,
-      detailsPrivacy,
-      connectionsPrivacy,
-      postsPrivacy,
-    },
-    create: {
-      language: language || 'en',
-      theme: theme || Theme.dark,
-      detailsPrivacy: detailsPrivacy || PrivacyOptions.public,
-      connectionsPrivacy: connectionsPrivacy || PrivacyOptions.public,
-      postsPrivacy: postsPrivacy || PrivacyOptions.public,
-      userId,
-    },
-  });
+  const settings = await UserService.upsertSettings(userId, request);
 
   res.json(settings);
 });
 
 export const getSettings = asyncHandler(async (req, res, next) => {
   const userId = req.params.userId;
-  let settings = await prisma.settings.findUnique({
+  const settings = await prisma.settings.findUnique({
     where: {
       userId,
     },
   });
+  let response: UserSettings;
 
-  if (!settings) {
-    // Create default settings if they don't exist
-    settings = await prisma.settings.create({
-      data: {
-        language: 'en',
-        theme: Theme.dark,
-        detailsPrivacy: PrivacyOptions.public,
-        connectionsPrivacy: PrivacyOptions.public,
-        postsPrivacy: PrivacyOptions.public,
-        userId,
-      },
-    });
+  if (settings) {
+    response = {
+      theme: settings.theme,
+      language: settings.language,
+      detailsPrivacy: settings.detailsPrivacy,
+      connectionsPrivacy: settings.connectionsPrivacy,
+      postsPrivacy: settings.postsPrivacy,
+    };
+  } else {
+    response = await UserService.upsertSettings(userId);
   }
 
-  res.json(settings);
+  res.json(response);
 });

@@ -1,14 +1,32 @@
-import type { Connection, User } from "@prisma/client"
+import type { ConnectionStateEnum } from "./enums/connection-state.enum";
+import type { UserDetails } from "./user.model";
 
-export type UserConnection = {
-  user: Partial<User>;
+export type ConnectionUser = UserDetails & {
+  connectionCount: number;
+  postsCount: number;
+};
+
+export interface ConnectionResponse {
+  user: ConnectionUser;
   userId: string;
   pending: boolean;
-  connection: Connection | null
 }
 
 export type ConnectionRequest = {
-  user: Partial<User>;
+  user: UserDetails;
   userId: string;
   connectionId: string;
 };
+
+export type ConnectionState = {
+  state: ConnectionStateEnum,
+  userId: string;
+  connectionId: string;
+}
+
+export type Suggestion = {
+  user: ConnectionUser,
+  followerId?: string;
+  followingId?: string;
+  state: ConnectionStateEnum
+}
