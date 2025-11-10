@@ -7,10 +7,14 @@ export type Post = {
   content: string;
   createdAt: Date;
   userId: string;
-  user: UserDetails;
+  user: PostUserDetails;
   comments: Comment[];
   likes: Like[];
 };
+
+export type PostUserDetails = UserDetails & {
+  settings: { postsPrivacy: string } | null
+}
 
 export type Like = {
   id: string;

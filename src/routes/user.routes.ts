@@ -2,7 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../middleware/auth.middleware";
 import {
   registerUser,
-  getUserDetails,
+  getUserProfile,
   editProfile,
   loginUser,
   getConnections,
@@ -31,7 +31,7 @@ router.put('/password/reset/:userId', resetPassword);
 
 router.use(isAuthenticated);
 
-router.post("/details", getUserDetails);
+router.post("/profile", getUserProfile);
 router.get("/profileImage/:id", getUserProfileImage);
 router.put("/:id", editProfile);
 router.get("/connections/all", getAllConnections);

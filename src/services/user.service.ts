@@ -15,12 +15,12 @@ import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 
 export class UserService {
-  static async getUserDetails(username: string): Promise<UserProfile> {
+  static async getUserProfile(username: string): Promise<UserProfile> {
     const user = await prisma.user.findFirst({
       where: { username },
       select: this.getUserDetailsQuerySelect(),
     });
-    return this.generateUserDetailsResponse(user);
+    return this.generateUserProfileResponse(user);
   }
 
   static getUserDetailsQuerySelect() {
@@ -65,7 +65,7 @@ export class UserService {
     };
   }
 
-  private static generateUserDetailsResponse(user: any): UserProfile {
+  private static generateUserProfileResponse(user: any): UserProfile {
     if (!user) return user;
     const userResponse: UserProfile = {
       id: user.id,

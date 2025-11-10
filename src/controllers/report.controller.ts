@@ -11,7 +11,6 @@ export const reportPost = asyncHandler(async (req, res) => {
     data: { reason, userId, postId }
   });
 
-  // Send notification to post owner and admins
   await NotificationService.notifyPostReported(postId, report.id);
 
   res.status(201).json(report);
@@ -22,21 +21,11 @@ export const reportComment = asyncHandler(async (req, res, next) => {
   const { reason } = req.body;
   const userId = req.user.id;
 
-  // Fetch the comment to get its postId
-  const comment = await prisma.comment.findUnique({
-    where: { id: commentId },
-    select: { postId: true }
-  });
-  if (!comment) {
-    return next(new Error('Comment not found'));
-  }
-
   const report = await prisma.report.create({
-    data: { reason, userId, postId: comment.postId, commentId }
+    data: { reason, userId, commentId }
   });
 
-  // Send notification to comment owner and admins
-  await NotificationService.notifyPostReported(comment.postId, report.id);
+  await NotificationService.notifyCommentReported(commentId, report.id);
 
   res.status(201).json(report);
 }); 

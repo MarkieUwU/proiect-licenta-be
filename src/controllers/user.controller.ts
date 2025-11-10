@@ -15,9 +15,9 @@ import { ConnectionService } from '../services/connection.service';
 import { UserService } from '../services/user.service';
 import { PostService } from '../services/post.service';
 
-export const getUserDetails = asyncHandler(async (req, res, next) => {
+export const getUserProfile = asyncHandler(async (req, res, next) => {
   const { username } = req.body;
-  const userDetails = await UserService.getUserDetails(username);
+  const userDetails = await UserService.getUserProfile(username);
 
   if (!userDetails) {
     next(ApiError.notFound('User not found'));
@@ -25,7 +25,7 @@ export const getUserDetails = asyncHandler(async (req, res, next) => {
   }
 
   const [posts, connections] = await Promise.all([
-    PostService.getUserPosts(userDetails.id),
+    PostService.getPosts(userDetails.id),
     ConnectionService.getConnections(userDetails.id, '', 6),
   ]);
 
@@ -46,11 +46,7 @@ export const getUserProfileImage = asyncHandler(async (req, res, next) => {
     select: { profileImage: true },
   });
 
-  if (!user?.profileImage) {
-    return next(ApiError.notFound('Profile image not found'));
-  }
-
-  res.json(user.profileImage);
+  res.json(user?.profileImage);
 });
 
 export const registerUser = asyncHandler(async (req, res, next) => {
@@ -67,7 +63,7 @@ export const registerUser = asyncHandler(async (req, res, next) => {
 
   const exinstingUser = await prisma.user.findFirst({
     where: {
-      OR: [email, username],
+      OR: [{ email }, { username }],
     },
   });
 
@@ -112,7 +108,7 @@ export const loginUser = asyncHandler(async (req, res, next) => {
     return next(ApiError.unauthorized('Username or password is incorrect'));
   }
 
-  await UserService.upsertSettings(user.id, { theme, language })
+  await UserService.upsertSettings(user.id, { theme, language });
 
   const loggedUser: LoggedUser = {
     id: user.id,
@@ -139,8 +135,8 @@ export const sendPasswordResetEmail = asyncHandler(async (req, res, next) => {
     return next(ApiError.notFound('User not found'));
   }
 
-  await UserService.sendPasswordResetEmail(user.id, email)
-  
+  await UserService.sendPasswordResetEmail(user.id, email);
+
   res.json(null);
 });
 

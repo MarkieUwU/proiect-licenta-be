@@ -50,7 +50,7 @@ export const markAsRead = asyncHandler(async (req, res) => {
   const notification = await prisma.notification.update({
     where: {
       id: notificationId,
-      userId, // Ensure user owns the notification
+      userId,
     },
     data: { read: true },
   });
@@ -73,7 +73,6 @@ export const deleteNotification = asyncHandler(async (req, res, next) => {
   const { notificationId } = req.params;
   const userId = req.user.id;
 
-  // First check if the notification exists and belongs to the user
   const notification = await prisma.notification.findFirst({
     where: {
       id: notificationId,
@@ -86,7 +85,6 @@ export const deleteNotification = asyncHandler(async (req, res, next) => {
     return;
   }
 
-  // Only allow deletion of read notifications
   if (!notification.read) {
     res.status(400).json({ message: 'Cannot delete unread notifications' });
     return;

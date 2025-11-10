@@ -1,32 +1,31 @@
-import { ApiError } from "../error/ApiError";
-import { prisma } from "../server";
-import asyncHandler from "express-async-handler";
-import { NotificationService } from "../services/notification.service";
+import { ApiError } from '../error/ApiError';
+import { prisma } from '../server';
+import asyncHandler from 'express-async-handler';
+import { NotificationService } from '../services/notification.service';
 
 export const addCommentToPost = asyncHandler(async (req, res, next) => {
   const postId = req.params.postId;
   const { text, userId } = req.body;
   const user = await prisma.user.findUnique({
     where: {
-      id: userId
+      id: userId,
     },
     select: {
-      fullName: true
-    }
+      fullName: true,
+    },
   });
 
-  if (user) {
-    const comment = await prisma.comment.create({
+  if (!user) {
+    return next(ApiError.notFound('User not found'));
+  }
+
+  const comment = await prisma.comment.create({
     data: { postId, userId, text, author: user.fullName },
   });
 
-    // Send notification to post owner and mentioned users
-    await NotificationService.notifyNewComment(postId, comment.id, userId);
+  await NotificationService.notifyNewComment(postId, comment.id, userId);
 
-    res.json(comment);
-  } else {
-    next(ApiError.notFound('User not found'));
-  }
+  res.json(comment);
 });
 
 export const updateComment = asyncHandler(async (req, res, next) => {
@@ -51,11 +50,11 @@ export const getPostComments = asyncHandler(async (req, res, next) => {
   const postId = req.params.postId;
   const comments = await prisma.comment.findMany({
     orderBy: {
-      createdAt: 'desc'
+      createdAt: 'desc',
     },
     where: {
       postId,
-      status: { not: "ARCHIVED" }
+      status: { not: 'ARCHIVED' },
     },
   });
   res.json(comments);

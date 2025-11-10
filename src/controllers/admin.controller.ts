@@ -4,162 +4,45 @@ import { ApiError } from '../error/ApiError';
 import { NotificationService } from '../services/notification.service';
 import { Role } from '../models/enums/role.enum';
 import { ContentStatus } from '../models/enums/content-status.enum';
-import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
+import { AdminService } from '../services/admin.service';
+import type {
+  CommentsPaginatedRequest,
+  OrderBy,
+  PostReportsPaginatedRequest,
+  PostReportsSortField,
+  PostsPaginatedRequest,
+  PostsSortField,
+  UsersPaginatedRequest,
+  UsersSortField,
+  CommentSortField,
+  CommentReportsPaginatedRequest,
+  CommentReportsSortField,
+} from '../models/admin.model';
 
 export const getDashboardStats = asyncHandler(async (req, res) => {
-  const [
-    totalUsers,
-    totalPosts,
-    totalConnections,
-    totalLikes,
-    totalComments,
-    totalReports,
-    recentUsers,
-    recentPosts,
-  ] = await Promise.all([
-    prisma.user.count(),
-    prisma.post.count(),
-    prisma.connection.count(),
-    prisma.like.count(),
-    prisma.comment.count(),
-    prisma.report.count(),
-    prisma.user.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        profileImage: true,
-        username: true,
-        fullName: true,
-        email: true,
-        createdAt: true
-      }
-    }),
-    prisma.post.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: {
-          select: {
-            profileImage: true,
-            username: true,
-            fullName: true
-          }
-        }
-      }
-    })
-  ]);
-
-  const now = new Date();
-  const userGrowth = [];
-  const postGrowth = [];
-  for (let i = 5; i >= 1; i--) {
-    const monthStart = startOfMonth(subMonths(now, i - 1));
-    const monthEnd = endOfMonth(subMonths(now, i - 1));
-    const [userCount, postCount] = await Promise.all([
-      prisma.user.count({
-        where: {
-          createdAt: {
-            gte: monthStart,
-            lte: monthEnd
-          }
-        }
-      }),
-      prisma.post.count({
-        where: {
-          createdAt: {
-            gte: monthStart,
-            lte: monthEnd
-          }
-        }
-      })
-    ]);
-    userGrowth.push({
-      name: format(monthStart, 'MMM').toUpperCase(),
-      users: userCount
-    });
-    postGrowth.push({
-      name: format(monthStart, 'MMM').toUpperCase(),
-      posts: postCount
-    });
-  }
-
-  let avgPopularityGrowthRate = null;
-  if (userGrowth.length >= 4 && postGrowth.length >= 4) {
-    let rates = [];
-    for (let i = userGrowth.length - 3; i < userGrowth.length; i++) {
-      const prevTotal = userGrowth[i - 1].users + postGrowth[i - 1].posts;
-      const currTotal = userGrowth[i].users + postGrowth[i].posts;
-      if (prevTotal > 0) {
-        rates.push(((currTotal - prevTotal) / prevTotal) * 100);
-      } else if (currTotal > 0) {
-        rates.push(100);
-      } else {
-        rates.push(0);
-      }
-    }
-    avgPopularityGrowthRate = rates.reduce((a, b) => a + b, 0) / rates.length;
-  }
-
-  res.json({
-    totalUsers,
-    totalPosts,
-    totalConnections,
-    totalComments,
-    totalLikes,
-    totalReports,
-    recentUsers,
-    recentPosts,
-    userGrowth,
-    postGrowth,
-    avgPopularityGrowthRate
-  });
+  const dashboardStatsData = await AdminService.getDashboardStats();
+  res.json(dashboardStatsData);
 });
 
 export const getUsers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search, sort = "createdAt", order = "desc" } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
+  const {
+    page = 1,
+    size = 10,
+    search,
+    sort = 'createdAt',
+    order = 'desc',
+  } = req.query;
+  const filters: UsersPaginatedRequest = {
+    page: +page,
+    size: +size,
+    search: search as string,
+    sort: sort as UsersSortField,
+    order: order as OrderBy,
+  };
 
-  const where = search ? {
-    OR: [
-      { username: { contains: search as string } },
-      { fullName: { contains: search as string } },
-      { email: { contains: search as string } }
-    ]
-  } : {};
+  const adminUserResponse = await AdminService.getUsers(filters);
 
-  const orderBy = { [sort as string]: order as "asc" | "desc" };
-
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      skip,
-      take: Number(limit),
-      orderBy,
-      select: {
-        id: true,
-        username: true,
-        fullName: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        _count: {
-          select: {
-            posts: { where: { status: { not: 'ARCHIVED' } } },
-            follower: true,
-            following: true
-          }
-        }
-      }
-    }),
-    prisma.user.count({ where })
-  ]);
-
-  res.json({
-    users,
-    total,
-    pages: Math.ceil(total / Number(limit))
-  });
+  res.json(adminUserResponse);
 });
 
 export const updateUserRole = asyncHandler(async (req, res, next) => {
@@ -176,78 +59,34 @@ export const updateUserRole = asyncHandler(async (req, res, next) => {
     select: {
       id: true,
       username: true,
-      role: true
-    }
+      role: true,
+    },
   });
 
   res.json(user);
 });
 
 export const getAdminPosts = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, search = "", status = ContentStatus.ALL, sort = "createdAt", order = "desc" } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
-
-  const where = {
-    ...(search ? {
-      OR: [
-        { title: { contains: search as string } },
-        { content: { contains: search as string } }
-      ]
-    } : {}),
-    ...(status !== ContentStatus.ALL ? { status: status as ContentStatus } : {})
+  const {
+    page = 1,
+    size = 10,
+    search = '',
+    status = ContentStatus.ALL,
+    sort = 'createdAt',
+    order = 'desc',
+  } = req.query;
+  const request: PostsPaginatedRequest = {
+    page: +page,
+    size: +size,
+    search: search as string,
+    status: status as ContentStatus,
+    sort: sort as PostsSortField,
+    order: order as OrderBy,
   };
 
-  const orderBy = { [sort as string]: order as "asc" | "desc" };
+  const adminPostsResponse = await AdminService.getAdminPosts(request);
 
-  const [response, total] = await Promise.all([
-    prisma.post.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            profileImage: true,
-            username: true,
-            fullName: true
-          }
-        },
-        _count: {
-          select: {
-            likes: true,
-            comments: { where: { status: { not: 'ARCHIVED' } } }
-          }
-        },
-        reports: {
-          include: {
-            user: {
-              select: {
-                username: true
-              }
-            }
-          }
-        }
-      },
-      skip,
-      take: Number(limit),
-      orderBy
-    }),
-    prisma.post.count({ where })
-  ]);
-
-  let posts = response.map(post => {
-    return {
-      ...post,
-      comments: post._count.comments,
-      likes: post._count.likes,
-      reports: post.reports.length
-    }
-  });
-
-  res.json({
-    posts,
-    pages: Math.ceil(total / Number(limit)),
-    total
-  });
+  res.json(adminPostsResponse);
 });
 
 export const updatePostStatus = asyncHandler(async (req, res) => {
@@ -256,18 +95,12 @@ export const updatePostStatus = asyncHandler(async (req, res) => {
 
   const post = await prisma.post.update({
     where: { id },
-    data: { 
+    data: {
       status,
       ...(status === ContentStatus.ARCHIVED && {
-        updatedAt: new Date()
-      })
+        updatedAt: new Date(),
+      }),
     },
-    include: {
-      user: true,
-      likes: true,
-      comments: true,
-      reports: true
-    }
   });
 
   await NotificationService.notifyPostStatusChange(post.id, status, reason);
@@ -275,177 +108,60 @@ export const updatePostStatus = asyncHandler(async (req, res) => {
   res.json(post);
 });
 
-export const getPostReports = asyncHandler(async (req, res) => {
-  const { postId } = req.params;
-
-  const reports = await prisma.report.findMany({
-    where: { postId },
-    include: {
-      user: {
-        select: {
-          id: true,
-          username: true,
-          fullName: true
-        }
-      }
-    },
-    orderBy: { createdAt: "desc" }
-  });
-
-  res.json(reports);
-});
-
 export const getAllPostReports = asyncHandler(async (req, res) => {
-  const { postId, postTitle, authorId, authorUsername, page = 1, limit = 20, sort = "createdAt", order = "desc" } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
+  const {
+    postId,
+    postTitle,
+    postAuthor,
+    reporter,
+    page = 1,
+    size = 10,
+    sort = 'createdAt',
+    order = 'desc',
+  } = req.query;
+  
+  const request: PostReportsPaginatedRequest = {
+    page: +page,
+    size: +size,
+    sort: sort as PostReportsSortField,
+    order: order as OrderBy,
+    postId: postId as string,
+    postTitle: postTitle as string,
+    postAuthor: postAuthor as string,
+    reporter: reporter as string
+  };
 
-  let where: any = { commentId: null };
-  if (postId) where.postId = postId;
+  const reportsResponse = await AdminService.getPostReports(request);
 
-  if (authorId) {
-    where.AND = [{ post: { user: { id: authorId } } }];
-  }
-
-  let orderBy: any;
-  const safeOrder = order === "asc" ? "asc" : "desc";
-  if (sort === 'postTitle' || sort === 'authorUsername') {
-    orderBy = { createdAt: safeOrder };
-  } else {
-    orderBy = { [sort as string]: safeOrder };
-  }
-
-  const [reports, total] = await Promise.all([
-    prisma.report.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            fullName: true
-          }
-        },
-        post: {
-          select: {
-            id: true,
-            title: true,
-            content: true,
-            user: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true
-              }
-            }
-          }
-        }
-      },
-      skip: 0,
-      take: 1000,
-      orderBy
-    }),
-    prisma.report.count({ where })
-  ]);
-
-  let processedReports = reports.map(report => ({
-    ...report,
-    postTitle: report.post.title,
-    authorUsername: report.post.user.username
-  }));
-
-  const postTitleStr = typeof postTitle === 'string' ? postTitle : Array.isArray(postTitle) ? String(postTitle[0]) : '';
-  const authorUsernameStr = typeof authorUsername === 'string' ? authorUsername : Array.isArray(authorUsername) ? String(authorUsername[0]) : '';
-
-  if (postTitleStr) {
-    processedReports = processedReports.filter(r => String(r.postTitle || '').toLowerCase().includes(postTitleStr.toLowerCase()));
-  }
-  if (authorUsernameStr) {
-    processedReports = processedReports.filter(r => String(r.authorUsername || '').toLowerCase().includes(authorUsernameStr.toLowerCase()));
-  }
-
-  if (sort === "postTitle") {
-    processedReports.sort((a, b) => {
-      const aValue = a.postTitle?.toLowerCase() || '';
-      const bValue = b.postTitle?.toLowerCase() || '';
-      return safeOrder === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-    });
-  } else if (sort === "authorUsername") {
-    processedReports.sort((a, b) => {
-      const aValue = a.authorUsername?.toLowerCase() || '';
-      const bValue = b.authorUsername?.toLowerCase() || '';
-      return safeOrder === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-    });
-  }
-
-  const pagedReports = processedReports.slice(skip, skip + Number(limit));
-
-  res.json({
-    reports: pagedReports,
-    total: processedReports.length,
-    pages: Math.ceil(processedReports.length / Number(limit))
-  });
+  res.json(reportsResponse);
 });
 
 export const getAdminComments = asyncHandler(async (req, res) => {
-  const { search = '', status, page = 1, pageSize = 20, sort = "createdAt", order = "desc" } = req.query;
-  const skip = (Number(page) - 1) * Number(pageSize);
+  const {
+    commentText = '',
+    postTitle = '',
+    authorUsername = '',
+    status,
+    page = 1,
+    size = 10,
+    sort = 'createdAt',
+    order = 'desc',
+  } = req.query;
+  
+  const request: CommentsPaginatedRequest = {
+    page: +page,
+    size: +size,
+    sort: sort as CommentSortField,
+    order: order as OrderBy,
+    commentText: commentText as string,
+    postTitle: postTitle as string,
+    authorUsername: authorUsername as string,
+    status: status as ContentStatus
+  }
 
-  // Remove mode: 'insensitive' for SQLite compatibility, do in-memory filtering for nested fields
-  let where: any = {
-    ...(status !== ContentStatus.ALL ? { status: status as ContentStatus } : {}),
-    ...(search
-      ? {
-          OR: [
-            { text: { contains: search as string } },
-          ],
-        }
-      : {}),
-  };
+  const adminCommentsResponse = await AdminService.getAdminComments(request);
 
-  let orderBy: any;
-  orderBy = { [sort as string]: order as "asc" | "desc" };
-
-  // Fetch with possible overfetch for in-memory filtering
-  const [comments, total] = await Promise.all([
-    prisma.comment.findMany({
-      where,
-      include: {
-        user: { select: { id: true, username: true, profileImage: true } },
-        post: { select: { id: true, title: true } },
-        reports: {
-          include: {
-            user: {
-              select: {
-                username: true
-              }
-            }
-          }
-        }
-      },
-      skip: 0,
-      take: 1000,
-      orderBy,
-    }),
-    prisma.comment.count({ where }),
-  ]);
-
-  // In-memory filtering for user.username and post.title
-  let processedComments = comments.filter(comment => {
-    if (!search) return true;
-    const searchLower = (search as string).toLowerCase();
-    const userMatch = comment.user?.username?.toLowerCase().includes(searchLower);
-    const postMatch = comment.post?.title?.toLowerCase().includes(searchLower);
-    return (
-      (comment.text && comment.text.toLowerCase().includes(searchLower)) ||
-      userMatch ||
-      postMatch
-    );
-  });
-
-  // Pagination after filtering
-  const pagedComments = processedComments.slice(skip, skip + Number(pageSize));
-
-  res.json({ comments: pagedComments, total: processedComments.length });
+  res.json(adminCommentsResponse);
 });
 
 export const updateCommentStatus = asyncHandler(async (req, res) => {
@@ -457,108 +173,39 @@ export const updateCommentStatus = asyncHandler(async (req, res) => {
     data: { status },
   });
 
-  await NotificationService.notifyCommentStatusChange(comment.id, status, reason);
+  await NotificationService.notifyCommentStatusChange(
+    comment.id,
+    status,
+    reason
+  );
 
   res.json(comment);
 });
 
 export const getAllCommentReports = asyncHandler(async (req, res) => {
-  const { commentId, commentContent, authorId, authorUsername, postId, page = 1, limit = 20, sort = "createdAt", order = "desc" } = req.query;
-  const skip = (Number(page) - 1) * Number(limit);
+  const {
+    commentId,
+    commentText,
+    commentAuthor,
+    reporter,
+    page = 1,
+    size = 10,
+    sort = 'createdAt',
+    order = 'desc',
+  } = req.query;
 
-  let where: any = { commentId: { not: null } };
-  if (commentId) where.commentId = commentId;
-  if (authorId) {
-    where.AND = [{ comment: { user: { id: authorId } } }];
-  }
-  if (postId) {
-    where.AND = [...where.AND, { comment: { post: { id: postId } } }];
-  }
+  const request: CommentReportsPaginatedRequest = {
+    page: +page,
+    size: +size,
+    sort: sort as CommentReportsSortField,
+    order: order as OrderBy,
+    commentId: commentId as string,
+    commentText: commentText as string,
+    commentAuthor: commentAuthor as string,
+    reporter: reporter as string,
+  };
 
-  let orderBy: any;
-  const safeOrder = order === "asc" ? "asc" : "desc";
-  if (sort === 'commentContent' || sort === 'authorUsername') {
-    orderBy = { createdAt: safeOrder };
-  } else {
-    orderBy = { [sort as string]: safeOrder };
-  }
+  const commentReportsResponse = await AdminService.getCommentReports(request);
 
-  const [reports, total] = await Promise.all([
-    prisma.report.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            fullName: true
-          }
-        },
-        comment: {
-          select: {
-            id: true,
-            text: true,
-            user: {
-              select: {
-                id: true,
-                username: true,
-                fullName: true
-              }
-            },
-            post: {
-              select: {
-                id: true,
-                title: true
-              }
-            }
-          }
-        }
-      },
-      skip: 0,
-      take: 1000,
-      orderBy
-    }),
-    prisma.report.count({ where })
-  ]);
-
-  let processedReports = reports.map(report => ({
-    ...report,
-    commentContent: report.comment?.text || '',
-    authorUsername: report.comment?.user.username || ''
-  }));
-
-  // Ensure query params are strings for in-memory filtering
-  const commentContentStr = typeof commentContent === 'string' ? commentContent : Array.isArray(commentContent) ? String(commentContent[0]) : '';
-  const authorUsernameStr2 = typeof authorUsername === 'string' ? authorUsername : Array.isArray(authorUsername) ? String(authorUsername[0]) : '';
-
-  // In-memory case-insensitive filtering
-  if (commentContentStr) {
-    processedReports = processedReports.filter(r => String(r.commentContent || '').toLowerCase().includes(commentContentStr.toLowerCase()));
-  }
-  if (authorUsernameStr2) {
-    processedReports = processedReports.filter(r => String(r.authorUsername || '').toLowerCase().includes(authorUsernameStr2.toLowerCase()));
-  }
-
-  if (sort === "commentContent") {
-    processedReports.sort((a, b) => {
-      const aValue = a.commentContent?.toLowerCase() || '';
-      const bValue = b.commentContent?.toLowerCase() || '';
-      return safeOrder === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-    });
-  } else if (sort === "authorUsername") {
-    processedReports.sort((a, b) => {
-      const aValue = a.authorUsername?.toLowerCase() || '';
-      const bValue = b.authorUsername?.toLowerCase() || '';
-      return safeOrder === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-    });
-  }
-
-  // Pagination after filtering
-  const pagedReports = processedReports.slice(skip, skip + Number(limit));
-
-  res.json({
-    reports: pagedReports,
-    total: processedReports.length,
-    pages: Math.ceil(processedReports.length / Number(limit))
-  });
+  res.json(commentReportsResponse);
 });

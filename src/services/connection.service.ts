@@ -13,7 +13,7 @@ import { UserService } from './user.service';
 export class ConnectionService {
   static async getConnections(
     userId: string,
-    searchString: string,
+    searchString = '',
     numberOf = 999
   ): Promise<ConnectionResponse[]> {
     const connections = await prisma.connection.findMany({
@@ -197,7 +197,7 @@ export class ConnectionService {
       where: this.searchStringWhere(searchString ?? ''),
       select: UserService.getUserDetailsQuerySelect(),
     });
-    const connections = (await this.getConnections(id, '')).map(
+    const connections = (await this.getConnections(id)).map(
       (con) => con.user.id
     );
     const suggestions = users.filter((user) => !connections.includes(user.id));

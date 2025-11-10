@@ -24,7 +24,6 @@ export class NotificationService {
     });
   }
 
-  // Post Report Notifications
   static async notifyPostReported(postId: string, reportId: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
@@ -33,7 +32,6 @@ export class NotificationService {
 
     if (!post) return;
 
-    // Notify post owner
     await this.createNotification({
       userId: post.userId,
       type: NotificationType.POST_REPORTED,
@@ -45,7 +43,6 @@ export class NotificationService {
       },
     });
 
-    // Notify admins
     const admins = await prisma.user.findMany({
       where: { role: "ADMIN" },
     });
@@ -68,7 +65,50 @@ export class NotificationService {
     );
   }
 
-  // Post Status Change Notifications
+  static async notifyCommentReported(commentId: string, reportId: string) {
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: {
+        text: true,
+        userId: true
+      }
+    });
+
+    if (!comment) return;
+
+    await this.createNotification({
+      userId: comment.userId,
+      type: NotificationType.COMMENT_REPORTED,
+      message: "Your comment has been reported and is under review",
+      data: { 
+        commentId,
+        reportId,
+        commentText: comment.text.substring(0, 100) + (comment.text.length > 100 ? "..." : ""),
+      },
+    });
+
+    const admins = await prisma.user.findMany({
+      where: { role: "ADMIN" },
+    });
+
+    await Promise.all(
+      admins.map((admin) =>
+        this.createNotification({
+          userId: admin.id,
+          type: NotificationType.COMMENT_REPORTED,
+          message: 'New comment report',
+          data: {
+            commentId,
+            reportId,
+            commentText:
+              comment.text.substring(0, 100) +
+              (comment.text.length > 100 ? '...' : ''),
+          },
+        })
+      )
+    );
+  }
+
   static async notifyPostStatusChange(postId: string, newStatus: ContentStatus, reason?: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
@@ -94,7 +134,7 @@ export class NotificationService {
         notificationType = NotificationType.POST_REPORTED;
         break;
       default:
-        return; // Don't send notification for unknown status
+        return;
     }
 
     await this.createNotification({
@@ -109,7 +149,6 @@ export class NotificationService {
     });
   }
 
-  // Comment Status Change Notifications
   static async notifyCommentStatusChange(commentId: string, newStatus: ContentStatus, reason?: string) {
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
@@ -143,7 +182,7 @@ export class NotificationService {
         notificationType = NotificationType.COMMENT_REPORTED;
         break;
       default:
-        return; // Don't send notification for unknown status
+        return;
     }
 
     await this.createNotification({
@@ -159,7 +198,6 @@ export class NotificationService {
     });
   }
 
-  // Engagement Notifications
   static async notifyPostLiked(postId: string, likerId: string) {
     const post = await prisma.post.findUnique({
       where: { id: postId },
@@ -197,7 +235,6 @@ export class NotificationService {
       where: { id: commenterId },
     });
 
-    // Notify post owner
     if (post.userId !== commenterId) {
       await this.createNotification({
         userId: post.userId,
@@ -213,7 +250,6 @@ export class NotificationService {
       });
     }
 
-    // Notify mentioned users
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
     });
@@ -231,7 +267,7 @@ export class NotificationService {
           mentionedUsers.map((user) =>
             this.createNotification({
               userId: user.id,
-              type: NotificationType.MENTIONED_IN_COMMENT,
+              type: NotificationType.MENTIONED,
               message: `${commenter?.fullName} mentioned you in a comment`,
               data: { 
                 postId,
@@ -247,14 +283,12 @@ export class NotificationService {
     }
   }
 
-  // Helper method to extract @mentions from text
   private static extractMentions(text: string): string[] {
     const mentionRegex = /@(\w+)/g;
     const matches = text.match(mentionRegex);
     return matches ? matches.map(match => match.substring(1)) : [];
   }
 
-  // System Notifications
   static async notifySystemAnnouncement(message: string, userIds?: string[]) {
     const users = userIds 
       ? await prisma.user.findMany({ where: { id: { in: userIds } } })
@@ -272,7 +306,6 @@ export class NotificationService {
     );
   }
 
-  // Account Warning Notifications
   static async notifyAccountWarning(userId: string, reason: string) {
     await this.createNotification({
       userId,

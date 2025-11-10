@@ -333,7 +333,6 @@ async function seed() {
           data: {
             reason,
             userId: reporter.id,
-            postId: comment.postId,
             commentId: comment.id,
           },
         });

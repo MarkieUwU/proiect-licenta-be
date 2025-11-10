@@ -7,7 +7,7 @@ export const apiErrorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error(err); // Log the error for debugging
+  console.error(err);
 
   if (err instanceof ApiError) {
     res.status(err.code).json({
@@ -15,7 +15,6 @@ export const apiErrorHandler = (
       message: err.message,
     });
   } else {
-    // For unexpected errors
     res.status(500).json({
       status: "error",
       message: "Internal Server Error",
