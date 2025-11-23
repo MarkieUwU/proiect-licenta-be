@@ -1,4 +1,4 @@
-# proiect-licenta-be
+# social-media-app-be
 
 To install dependencies:
 
